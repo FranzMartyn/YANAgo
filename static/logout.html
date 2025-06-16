@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NoteTaker - Logged Out</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Auto-redirect to welcome page after 5 seconds -->
+    <meta http-equiv="refresh" content="5;url=welcome">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>YANAgo</h1>
+            <nav>
+                <ul>
+                    <li><a href="welcome">Home</a></li>
+                    <li><a href="login">Login</a></li>
+                    <li><a href="register">Register</a></li>
+                </ul>
+            </nav>
+        </header>
+        
+        <main>
+            <div class="logout-container">
+                <div class="logout-icon">✓</div>
+                <h2 class="logout-title">Successfully Logged Out</h2>
+                <p class="logout-message">Thank you for using <span class="app-name">YANAgo</span>. Your session has been securely ended.</p>
+                
+                <div class="redirect-message">
+                    <p>You will be redirected to the home page in <span class="countdown">5</span> seconds</p>
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                </div>
+                
+                <p class="return-options">What would you like to do next?</p>
+                
+                <div class="logout-actions">
+                    <a href="login" class="btn">Log Back In</a>
+                    <a href="welcome" class="btn btn-secondary">Return to Home</a>
+                </div>
+            </div>
+        </main>
+        
+        <footer>
+            <p>Made with v0.dev</p>
+        </footer>
+    </div>
+</body>
+</html>

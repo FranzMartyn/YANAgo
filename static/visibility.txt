@@ -1,0 +1,11 @@
+# VISIBILITY OF EACH HTML FILE:
+
+Only when logged in:
+    - index/notes
+    - create-note
+    - logout
+
+Only when logged out:
+    - welcome
+    - login
+    - register

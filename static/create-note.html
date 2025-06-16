@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YANAgo - Create Note</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>YANAgo</h1>
+            <nav>
+                <ul>
+                    <li><a href="/index">Notes</a></li>
+                    <li><a href="create-note" class="active">Create Note</a></li>
+                    <li><a href="logout" class="logout-link">Logout</a></li>
+                </ul>
+            </nav>
+        </header>
+        
+        <main>
+            <div class="create-note">
+                <h2>Create a New Note</h2>
+                <form action="save-note" method="post" class="note-form">
+                    <div class="form-group">
+                        <label for="title">Title</label>
+                        <input type="text" id="title" name="title" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="content">Content</label>
+                        <textarea id="content" name="content" rows="10" required></textarea>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <a href="index" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn">Save Note</button>
+                    </div>
+                </form>
+            </div>
+        </main>
+        
+        <footer>
+            <p>Made with v0.dev</p>
+        </footer>
+    </div>
+</body>
+</html>

@@ -1,0 +1,56 @@
+<!-- https://github.com/flosch/pongo2 is used for templating-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YANAgo - Login</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>YANAgo</h1>
+            <nav>
+                <ul>
+                    <li><a href="welcome">Home</a></li>
+                    <li><a href="login" class="active">Login</a></li>
+                    <li><a href="register">Register</a></li>
+                </ul>
+            </nav>
+        </header>
+        
+        <main>
+            <div class="auth-container">
+                <h2>Login to Your Account</h2>
+                <form action="/login" method="post" class="auth-form">
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" name="email" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" name="password" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <input type="checkbox" id="remember" name="remember">
+                        <label for="remember" class="checkbox-label">Remember me</label>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-full">Login</button>
+                </form>
+                
+                <p class="auth-footer">
+                    Don't have an account? <a href="register.html">Register here</a>
+                </p>
+            </div>
+        </main>
+        
+        <footer>
+            <p>Made with v0.dev</p>
+        </footer>
+    </div>
+</body>
+</html>
