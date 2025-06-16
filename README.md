@@ -20,6 +20,6 @@ Run `go run server.go` to test if everything is setup correctly
 
 ### PostgreSQL
 
-You need to have a table called "user_" with the following rows:
+You need to have a table called `user_` with the following rows:
 
 *WIP: Insert row data here. A picture might be enough*
