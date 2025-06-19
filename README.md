@@ -16,7 +16,7 @@ You need to have access to a [PostgreSQL](https://www.postgresql.org/docs/curren
 
 Then edit the yaml files in `db/` with your data
 
-Run `go run server.go` to test if everything is setup correctly
+Run `go run server.go` or `go run .` to test if everything is setup correctly
 
 ### PostgreSQL
 
