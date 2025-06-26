@@ -127,12 +127,17 @@ func postRegister(context echo.Context) error {
 
 func postCreateNote(context echo.Context) error {
 	userId, err := context.Cookie(USER_ID_COOKIE_NAME)
-	if err != nil || userId.String() == "" {
+	if err != nil || userId.Value == "" {
 		fmt.Printf("postCreateNote(): userId.String() is empty ('%s') or err != nil (%w)\n", userId.String(), err)
 		context.Response().Header().Set("error", "CouldNotCreateNote")
 		return context.Redirect(http.StatusMovedPermanently, "/")
 	}
-	yana.NewNote(userId.String(), context.FormValue("title"), context.FormValue("content"))
+	uploadInfo, err := yana.NewNote(userId.Value, context.FormValue("title")+".txt", context.FormValue("content"))
+	if err != nil {
+		fmt.Println("Error:", err)
+		fmt.Println("uploadInfo:", uploadInfo)
+		context.Redirect(http.StatusMovedPermanently, "/create-note")
+	}
 	return context.Redirect(http.StatusMovedPermanently, "/")
 }
 

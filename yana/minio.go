@@ -79,14 +79,16 @@ func NewBucket(bucketName string) error {
 }
 
 func NewNote(userId string, noteName string, content string) (minio.UploadInfo, error) {
+	fmt.Printf("userId:'%s'\n", userId)
+	fmt.Println("Running yana.NewNote")
 	contextBackground := context.Background()
 	minioClient, err := generateMinIOClient()
 	if err != nil {
-		return minio.UploadInfo{}, fmt.Errorf("yana.NewBucket() -> (Fail generating minioclient) Couldn't create bucket because: '%w'\n", err)
+		return minio.UploadInfo{}, fmt.Errorf("yana.NewBucket() -> (Fail generating minioclient) Couldn't create Client because: '%w'\n", err)
 	}
 	uploadInfo, err := minioClient.PutObject(contextBackground, userId, noteName, strings.NewReader(content), int64(len(content)), minio.PutObjectOptions{ContentType: "application/text"})
 	if err != nil {
-		return minio.UploadInfo{}, fmt.Errorf("yana.NewBucket() -> (Fail uploading Object) Couldn't create note because: '%w'\n", err)
+		return uploadInfo, fmt.Errorf("yana.NewBucket() -> (Fail uploading Object) Couldn't create note because: '%w'\n", err)
 	}
 	return uploadInfo, nil
 }
