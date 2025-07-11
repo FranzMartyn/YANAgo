@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/flosch/pongo2"
 	"github.com/labstack/echo/v4"
@@ -47,7 +48,8 @@ func getIndex(context echo.Context) error {
 	if err != nil || cookie.String() == "" {
 		return context.Redirect(http.StatusMovedPermanently, "/welcome")
 	}
-	return context.Render(200, "static\\index.html", pongo2.Context{})
+	notes := yana.GetAllNotesOfUser(cookie.String())
+	return context.Render(200, "static\\index.html", pongo2.Context{"notes": notes})
 }
 
 func getRoot(context echo.Context) error {
@@ -97,6 +99,14 @@ func getWelcome(context echo.Context) error {
 	}
 	fmt.Printf("loggedIn in getWelcome: %t\n", loggedIn)
 	return context.Render(200, "static\\welcome.html", pongo2.Context{"isLoggedIn": loggedIn})
+}
+
+func getEditNote(context echo.Context) error {
+	return context.Render(200, "static\\edit-note.html", pongo2.Context{})
+}
+
+func getDeleteNote(context echo.Context) error {
+	return context.Render(200, "static\\delete-note.html", pongo2.Context{})
 }
 
 // ------------ POST ------------
@@ -181,6 +191,8 @@ func initRoutes(e *echo.Echo) {
 	e.GET("/register", getRegister)
 	e.GET("/welcome", getWelcome)
 	e.GET("/logout", getLogout)
+	e.GET("/edit-note", getEditNote)
+	e.GET("/delete-note", getDeleteNote)
 
 	e.POST("/login", postLogin)
 	e.POST("/create-note", postCreateNote)
@@ -188,15 +200,14 @@ func initRoutes(e *echo.Echo) {
 }
 
 func main() {
-	// s := yana.User{Email: "", FullName: "", EncryptedPassword: ""}
+	echoServer.Logger.Info("Started at: ", time.Now())
 
 	renderer := Renderer{
 		Debug: false,
 	}
 
-	e := echo.New()
-	e.Renderer = renderer
-	initRoutes(e)
-
-	e.Logger.Fatal(e.Start(":1323"))
+	echoServer := echo.New()
+	echoServer.Renderer = renderer
+	initRoutes(echoServer)
+	echoServer.Logger.Fatal(e.Start(":1323"))
 }

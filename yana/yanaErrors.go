@@ -8,9 +8,12 @@ type YanaError struct {
 // This is an enum for the error codes of YanaError
 // TODO: Add more in the future?
 const (
-	ConnectionFailed = iota
+	NoError = iota
+	ConnectionFailed
 	PingFailed
 	QueryFailed
 	UserNotFound
 	PasswordsNotEqual
+	BadClient
+	NoteAlreadyExists // Not used yet
 )

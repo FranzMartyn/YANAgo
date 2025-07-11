@@ -36,6 +36,13 @@ type User struct {
 	FullName string
 }
 
+type PostgresNote struct {
+	Id           string
+	Bucketname   string
+	Filename     string
+	CreatedAtUTC string
+}
+
 func readPostgresConfig(path string) (PostgresConfig, error) {
 	file, err := os.ReadFile(path)
 	if err != nil {
@@ -194,10 +201,73 @@ func InsertNewUserInPostgres(email string, fullname string, password string) (st
 	// TODO: Encrypt Password
 	encryptedPassword := password
 
-	sql := `INSERT INTO user_ (id, fullname, encryptedpassword ,email) VALUES ($1, $2, $3, $4)`
-	_, err = db.Exec(sql, userid, fullname, encryptedPassword, email)
+	query := `INSERT INTO user_ (id, fullname, encryptedpassword, email) VALUES ($1, $2, $3, $4)`
+	_, err = db.Exec(query, userid, fullname, encryptedPassword, email)
 	if err != nil {
 		return "", fmt.Errorf("yana.InsertNewUserInPostgres() -> Insert query wasn't succesful: %w", err)
 	}
 	return userid, nil
+}
+
+// err == nil means deletion was  succesful
+func deleteRowOfNote(bucketName, fileName string) error {
+	db, err := connectToPostgres()
+	defer db.Close()
+	if err != nil {
+		return err
+	}
+	query := "DELETE FROM note WHERE bucketname = $1 AND filename = $2"
+	_, err = db.Exec(query, bucketName, fileName)
+	if err != nil {
+		return fmt.Errorf("Error in yana.deleteRowOfNote() -> Couldn't delete row because: %x", err)
+	}
+	return nil
+}
+
+func insertNewNoteInPostgres(userId, filename string) error {
+	db, err := connectToPostgres()
+	defer db.Close()
+	if err != nil {
+		return fmt.Errorf("Error in yana.InsertNewNoteInPostgres() -> couldn't create to postgres because: %x", err)
+	}
+
+	isNoteInDB, yanaErr := doesNoteWithSameNameExist(userId, filename)
+	if yanaErr.Err != nil {
+		return fmt.Errorf("Error in yana.InsertNewNoteInPostgres() -> Note in user bucket with same name exists: %w", yanaErr.Err)
+	}
+	if isNoteInDB {
+		return fmt.Errorf("Error in yana.InsertNewNoteInPostgres() -> Note with same name is already in user's bucket")
+	}
+
+	// var id string
+	query := `INSERT INTO user_ (id, bucketname, filename, created_at_utc) VALUES (gen_random_uuid(), $1, $2, timezone('utc', NOW()::timestamp))`
+	_, err = db.Exec(query, userId, filename) //.Scan(&id)
+	if err != nil {
+		return fmt.Errorf("Error in yana.InsertNewNoteInPostgres() -> Insert query wasn't succesful: %w", err)
+	}
+
+	return nil
+}
+
+func GetPostgresNoteInfo(bucketname, filename string) (PostgresNote, error) {
+	db, err := connectToPostgres()
+	defer db.Close()
+	if err != nil {
+		return PostgresNote{}, fmt.Errorf("Error in yana.getCreationDateOfNote() -> couldn't create to postgres because: %x", err)
+	}
+
+	var id string
+	var bucketnameFromPostgres string
+	var filenameFromPostgres string
+	var creationDate string
+	query := `SELECT id, bucketname, filename, created_at_utc FROM user_  WHERE bucketname = $1 AND filename = $2`
+	rows, err := db.Exec(query, bucketname, filename)
+	defer rows.Close()
+
+	rows.Scan()
+	//.Scan(&id, &bucketnameFromPostgres, &filenameFromPostgres, &creationDate)
+	if err != nil {
+		return PostgresNote{}, fmt.Errorf("Error in yana.getCreationDateOfNote() -> Select query wasn't succesful: %w", err)
+	}
+	return PostgresNote{id, bucketnameFromPostgres, filenameFromPostgres, creationDate}, nil
 }

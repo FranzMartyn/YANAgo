@@ -18,7 +18,7 @@
                 </ul>
             </nav>
         </header>
-        
+       
         <main>
             <div class="notes-header">
                 <h2>Your Notes</h2>
@@ -26,7 +26,19 @@
             </div>
             
             <div class="notes-grid">
+                {% for note in notes %}
                 <div class="note-card">
+                    <h3>{{ note.Name }}</h3>
+                    <p>{{ note.ContentShortened }}</p>
+                    <div class="note-footer">
+                        <span class="date">{{ note.CreatedAt }}</span>
+                        <a href="edit-note/{{ note.PostgresId }}" class="edit-link">Edit</a>
+                        <a href="delete-note/{{ note.PostgresId }}" class="delete-link">Delete</a>
+                    </div>
+                </div>
+                {% endfor %}
+
+                <!-- <div class="note-card">
                     <h3>Meeting Notes</h3>
                     <p>Discuss project timeline and deliverables with the team.</p>
                     <div class="note-footer">
@@ -56,7 +68,7 @@
                     <div class="note-footer">
                         <span class="date">March 15, 2025</span>
                     </div>
-                </div>
+                </div> -->
             </div>
         </main>
         
