@@ -1,6 +1,6 @@
-# YANAgo
+<img src="assets/logo.png" alt="Logo" width="50%" align=center/>
 
-<img src="assets/logo.png" style="display: block;margin: auto;" alt="Logo" width="50%"/>
+# YANAgo
 
 YANAgo is, as the name implies, **Y**et **A**nother **N**otes **A**pp - written in **go** and [labstack/echo](https://github.com/labstack/echo).
 
