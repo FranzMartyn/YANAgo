@@ -260,7 +260,7 @@ func GetPostgresNoteInfo(bucketname, filename string) (PostgresNote, error) {
 	var bucketnameFromPostgres string
 	var filenameFromPostgres string
 	var creationDate string
-	query := `SELECT id, bucketname, filename, created_at_utc FROM user_  WHERE bucketname = $1 AND filename = $2`
+	query := `SELECT id, bucketname, filename, created_at_utc FROM note  WHERE bucketname = $1 AND filename = $2`
 	err = db.QueryRow(query, bucketname, filename).Scan(&id, &bucketnameFromPostgres, &filenameFromPostgres, &creationDate)
 	if err != nil {
 		return PostgresNote{}, fmt.Errorf("Error in yana.getCreationDateOfNote() -> Select query wasn't succesful: %w", err)

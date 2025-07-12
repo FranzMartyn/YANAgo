@@ -94,28 +94,25 @@ func GetAllNotesOfUser(bucketName string) ([]Note, error) {
 	if err != nil {
 		return []Note{}, nil
 	}
-	objectChannel := minioClient.ListObjects(yanaContext, bucketName, minio.ListObjectsOptions{Recursive: true})
-	if len(objectChannel) == 0 {
-		fmt.Println("len(objectChannel) == 0")
-		return []Note{}, nil
-	}
+	cont := context.Background()
+	objectChannel := minioClient.ListObjects(cont, bucketName, minio.ListObjectsOptions{Recursive: true})
 	var notes []Note
 	i := -1 // -1 so the index is 0 at the start of the for (each) loop
 	for objectInfo := range objectChannel {
-		fmt.Println("objectInfo:", objectInfo)
 		i++
 		if objectInfo.Err != nil {
-			fmt.Printf("yana.GetAllNotesOfUser() -> Failing to get object at index %d because '%w')", i, objectInfo.Err)
+			fmt.Printf("yana.GetAllNotesOfUser() -> Failing to get object at index %d because '%w'\n\n", i, objectInfo.Err)
 			continue
 		}
-		actualNote, err := GetNote(objectInfo.Owner.DisplayName, objectInfo.Key) // Might not actually work lol
+		actualNote, err := GetNote(bucketName, objectInfo.Key) // Might not actually work lol
 		if err != nil {
-			fmt.Printf("yana.GetAllNotesOfUser() -> Failing to fetch actual object at index %d because '%w')", i, err)
+			fmt.Printf("yana.GetAllNotesOfUser() -> Failing to fetch actual object at index %d because '%w'\n\n", i, err)
 			continue
 		}
 		notes = append(notes, actualNote)
 	}
-	fmt.Println(notes)
+	fmt.Println("notes:", notes)
+	fmt.Println("notes len:", len(notes))
 	fmt.Println("Last index = ", i)
 	return notes, nil
 }
@@ -130,8 +127,10 @@ func shortenNoteContent(content string) string {
 func GetNote(bucketName, noteName string) (Note, error) {
 	err := checkMinIOClient()
 	if err != nil {
-		return Note{}, fmt.Errorf("yana.GetNote() -> (Fail generating minioclient) Couldn't create bucket because: '%w'\n", err)
+		return Note{}, fmt.Errorf("yana.GetNote() -> (Fail generating minioclient) Couldn't create minio because: '%w'\n", err)
 	}
+	fmt.Println("bucketName in GetNote: ", bucketName)
+	fmt.Println("noteName in GetNote: ", bucketName)
 	object, err := minioClient.GetObject(yanaContext, bucketName, noteName, minio.GetObjectOptions{})
 	if err != nil {
 		return Note{}, fmt.Errorf("Couldn't get note in yana.GetNote(): %w", err)
