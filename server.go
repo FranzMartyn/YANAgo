@@ -48,8 +48,17 @@ func getIndex(context echo.Context) error {
 	if err != nil || cookie.String() == "" {
 		return context.Redirect(http.StatusMovedPermanently, "/welcome")
 	}
-	notes := yana.GetAllNotesOfUser(cookie.String())
-	return context.Render(200, "static\\index.html", pongo2.Context{"notes": notes})
+	notes, err := yana.GetAllNotesOfUser(cookie.Value)
+	if err != nil {
+		fmt.Println("Some error in getIndex:", err)
+	}
+
+	noNotes := false
+	if len(notes) == 0 {
+		noNotes = true
+	}
+
+	return context.Render(200, "static\\index.html", pongo2.Context{"notes": notes, "noNotes": noNotes})
 }
 
 func getRoot(context echo.Context) error {
@@ -72,9 +81,6 @@ func getLogin(context echo.Context) error {
 }
 
 func getLogout(context echo.Context) error {
-	/*
-		Actual logout stuff here...
-	*/
 	addCookieToContext(&context, USER_ID_COOKIE_NAME, "")
 	return context.Render(200, "static\\logout.html", pongo2.Context{})
 }
@@ -97,7 +103,6 @@ func getWelcome(context echo.Context) error {
 	} else {
 		loggedIn = true
 	}
-	fmt.Printf("loggedIn in getWelcome: %t\n", loggedIn)
 	return context.Render(200, "static\\welcome.html", pongo2.Context{"isLoggedIn": loggedIn})
 }
 
@@ -200,7 +205,6 @@ func initRoutes(e *echo.Echo) {
 }
 
 func main() {
-	echoServer.Logger.Info("Started at: ", time.Now())
 
 	renderer := Renderer{
 		Debug: false,
@@ -209,5 +213,6 @@ func main() {
 	echoServer := echo.New()
 	echoServer.Renderer = renderer
 	initRoutes(echoServer)
-	echoServer.Logger.Fatal(e.Start(":1323"))
+	echoServer.Logger.Info("Started at: %s\n", time.Now())
+	echoServer.Logger.Fatal(echoServer.Start(":1323"))
 }

@@ -90,13 +90,19 @@ func doesNoteWithSameNameExist(bucketName, noteName string) (bool, YanaError) {
 }
 
 func GetAllNotesOfUser(bucketName string) ([]Note, error) {
-	objectChannel := minioClient.ListObjects(yanaContext, bucketName, minio.ListObjectsOptions{})
+	err := checkMinIOClient()
+	if err != nil {
+		return []Note{}, nil
+	}
+	objectChannel := minioClient.ListObjects(yanaContext, bucketName, minio.ListObjectsOptions{Recursive: true})
 	if len(objectChannel) == 0 {
+		fmt.Println("len(objectChannel) == 0")
 		return []Note{}, nil
 	}
 	var notes []Note
 	i := -1 // -1 so the index is 0 at the start of the for (each) loop
 	for objectInfo := range objectChannel {
+		fmt.Println("objectInfo:", objectInfo)
 		i++
 		if objectInfo.Err != nil {
 			fmt.Printf("yana.GetAllNotesOfUser() -> Failing to get object at index %d because '%w')", i, objectInfo.Err)
@@ -109,6 +115,7 @@ func GetAllNotesOfUser(bucketName string) ([]Note, error) {
 		}
 		notes = append(notes, actualNote)
 	}
+	fmt.Println(notes)
 	fmt.Println("Last index = ", i)
 	return notes, nil
 }
@@ -165,6 +172,11 @@ func NewBucket(bucketName string) error {
 }
 
 func NewNote(bucketName, noteName, content string) (minio.UploadInfo, error) {
+	err := checkMinIOClient()
+	if err != nil {
+		fmt.Println("Some problem with checkMinIOClient: %w", err)
+		return minio.UploadInfo{}, nil
+	}
 	isExisting, yanaErr := doesNoteWithSameNameExist(bucketName, noteName)
 	if isExisting {
 		return minio.UploadInfo{}, fmt.Errorf("yana.NewNote() -> (Note already exists) Checked if note with same name exists: '%w'", yanaErr.Err)
@@ -173,7 +185,7 @@ func NewNote(bucketName, noteName, content string) (minio.UploadInfo, error) {
 	// because it feels a lot safer to remove a row in postgres than to remove an object in MinIO.
 	// I also think that it might be faster to delete a row than an object
 	// but that's just speculation
-	err := insertNewNoteInPostgres(bucketName, noteName)
+	err = insertNewNoteInPostgres(bucketName, noteName)
 	if err != nil {
 		return minio.UploadInfo{}, fmt.Errorf("yana.NewNote() -> (Fail inserting info to postgres) Couldn't add info to postgres because: %w", err)
 	}

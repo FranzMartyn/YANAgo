@@ -240,7 +240,7 @@ func insertNewNoteInPostgres(userId, filename string) error {
 	}
 
 	// var id string
-	query := `INSERT INTO user_ (id, bucketname, filename, created_at_utc) VALUES (gen_random_uuid(), $1, $2, timezone('utc', NOW()::timestamp))`
+	query := `INSERT INTO note (id, bucketname, filename, created_at_utc) VALUES (gen_random_uuid(), $1, $2, timezone('utc', NOW()::timestamp))`
 	_, err = db.Exec(query, userId, filename) //.Scan(&id)
 	if err != nil {
 		return fmt.Errorf("Error in yana.InsertNewNoteInPostgres() -> Insert query wasn't succesful: %w", err)
@@ -261,11 +261,7 @@ func GetPostgresNoteInfo(bucketname, filename string) (PostgresNote, error) {
 	var filenameFromPostgres string
 	var creationDate string
 	query := `SELECT id, bucketname, filename, created_at_utc FROM user_  WHERE bucketname = $1 AND filename = $2`
-	rows, err := db.Exec(query, bucketname, filename)
-	defer rows.Close()
-
-	rows.Scan()
-	//.Scan(&id, &bucketnameFromPostgres, &filenameFromPostgres, &creationDate)
+	err = db.QueryRow(query, bucketname, filename).Scan(&id, &bucketnameFromPostgres, &filenameFromPostgres, &creationDate)
 	if err != nil {
 		return PostgresNote{}, fmt.Errorf("Error in yana.getCreationDateOfNote() -> Select query wasn't succesful: %w", err)
 	}
