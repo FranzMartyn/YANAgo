@@ -1,6 +1,6 @@
 # YANAgo
 
-[//]: <> (Maybe add an AI generated logo of YANAgo or something)
+<img src="assets/logo.png" style="display: block;margin: auto;" alt="Logo" width="50%"/>
 
 YANAgo is, as the name implies, **Y**et **A**nother **N**otes **A**pp - written in **go** and [labstack/echo](https://github.com/labstack/echo).
 
@@ -18,9 +18,7 @@ git clone https://github.com/FranzMartyn/YANAgo
 
 Then edit the yaml files in `db/` with your data
 
-
-
-Run `make install` `make run` to test if everything is setup correctly
+Run `make install` to install the dependencies, then `make run` to test if everything works
 
 ### PostgreSQL
 
