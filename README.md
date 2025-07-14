@@ -1,5 +1,5 @@
 <div style="text-align: center;">
-  <img src="your-image-url.png" alt="Alt text" width="300">
+  <img src="assets/logo.png" alt="Alt text" width="300">
 </div>
 
 # YANAgo
