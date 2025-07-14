@@ -1,4 +1,6 @@
-<img src="assets/logo.png" alt="Logo" width="50%" align=center/>
+<div style="text-align: center;">
+  <img src="your-image-url.png" alt="Alt text" width="300">
+</div>
 
 # YANAgo
 
@@ -12,7 +14,7 @@ YANAgo is, as the name implies, **Y**et **A**nother **N**otes **A**pp - written 
 
 ## Installation
 
-```
+```bash
 git clone https://github.com/FranzMartyn/YANAgo
 ```
 
