@@ -26,6 +26,7 @@ func (renderer Renderer) Render(writer io.Writer, site string, data interface{},
 		var ok bool
 		context, ok = data.(pongo2.Context)
 		if !ok {
+			fmt.Println("not ok renderer (argh..): ", data)
 			return errors.New("Pongo2.Context is empty")
 		}
 	}
@@ -35,8 +36,11 @@ func (renderer Renderer) Render(writer io.Writer, site string, data interface{},
 	var err error
 	template, err = pongo2.FromFile(site)
 	if err != nil {
+		fmt.Printf("err != nil in renderer (argh..): '%w'\n", err)
+		fmt.Println(err)
 		return err
 	}
+	fmt.Println("\nNEW REQUEST\n")
 
 	return template.ExecuteWriter(context, writer)
 }
@@ -52,13 +56,12 @@ func getIndex(context echo.Context) error {
 	if err != nil {
 		fmt.Println("Some error in getIndex:", err)
 	}
-
 	noNotes := false
 	if len(notes) == 0 {
 		noNotes = true
 	}
-
-	return context.Render(200, "static\\index.html", pongo2.Context{"notes": notes, "noNotes": noNotes})
+	fmt.Println("notes:", notes)
+	return context.Render(200, "static/index.html", pongo2.Context{"notes": notes, "noNotes": noNotes})
 }
 
 func getRoot(context echo.Context) error {
@@ -66,7 +69,8 @@ func getRoot(context echo.Context) error {
 }
 
 func getCreateNote(context echo.Context) error {
-	return context.Render(200, "static\\create-note.html", pongo2.Context{})
+	// noteTitle and noteContent are left empty
+	return context.Render(200, "static/note.html", pongo2.Context{"isNewNote": true, "formLink": "/create-note"})
 }
 
 func addCookieToContext(context *echo.Context, name string, value string) {
@@ -77,12 +81,12 @@ func addCookieToContext(context *echo.Context, name string, value string) {
 }
 
 func getLogin(context echo.Context) error {
-	return context.Render(200, "static\\login.html", pongo2.Context{})
+	return context.Render(200, "static/login.html", pongo2.Context{})
 }
 
 func getLogout(context echo.Context) error {
 	addCookieToContext(&context, USER_ID_COOKIE_NAME, "")
-	return context.Render(200, "static\\logout.html", pongo2.Context{})
+	return context.Render(200, "static/logout.html", pongo2.Context{})
 }
 
 func getRegister(context echo.Context) error {
@@ -90,7 +94,7 @@ func getRegister(context echo.Context) error {
 	if context.Request().Header.Get("error") == "DBConnectionFailure" {
 		pongoContext = pongo2.Context{"error": "DBConnectionFailure"}
 	} // else { ... TODO
-	return context.Render(200, "static\\register.html", pongoContext)
+	return context.Render(200, "static/register.html", pongoContext)
 }
 
 func getWelcome(context echo.Context) error {
@@ -103,15 +107,26 @@ func getWelcome(context echo.Context) error {
 	} else {
 		loggedIn = true
 	}
-	return context.Render(200, "static\\welcome.html", pongo2.Context{"isLoggedIn": loggedIn})
+	return context.Render(200, "static/welcome.html", pongo2.Context{"isLoggedIn": loggedIn})
 }
 
 func getEditNote(context echo.Context) error {
-	return context.Render(200, "static\\edit-note.html", pongo2.Context{})
-}
-
-func getDeleteNote(context echo.Context) error {
-	return context.Render(200, "static\\delete-note.html", pongo2.Context{})
+	postgresNoteId := context.QueryParam("noteId")
+	if postgresNoteId == "" {
+		fmt.Printf("postgresNoteId is empty: '%s'", postgresNoteId)
+		return context.Redirect(http.StatusMovedPermanently, "/index")
+	}
+	note, err := yana.GetNoteFromNoteId(postgresNoteId)
+	if err != nil {
+		fmt.Printf("err != nil in getEditNote: %w\n", err)
+		fmt.Println("postgresNoteId:", postgresNoteId)
+		context.Response().Header().Set("Error", "CouldNotFindNoteFromId")
+		return context.Redirect(http.StatusMovedPermanently, "/index")
+	}
+	fmt.Println("everything is fine and note id:", postgresNoteId)
+	fmt.Printf("err: '%w'", err)
+	fmt.Println(note)
+	return context.Render(200, "static\\note.html", pongo2.Context{"isNewNote": false, "formLink": "/edit-note", "noteTitle": note.Name, "noteContent": note.Content, "noteId": note.PostgresId})
 }
 
 // ------------ POST ------------
@@ -147,10 +162,8 @@ func postCreateNote(context echo.Context) error {
 		context.Response().Header().Set("error", "CouldNotCreateNote")
 		return context.Redirect(http.StatusMovedPermanently, "/")
 	}
-	uploadInfo, err := yana.NewNote(userId.Value, context.FormValue("title")+".txt", context.FormValue("content"))
+	_, err = yana.NewNote(userId.Value, context.FormValue("title")+".txt", context.FormValue("content"))
 	if err != nil {
-		fmt.Println("Error:", err)
-		fmt.Println("uploadInfo:", uploadInfo)
 		context.Redirect(http.StatusMovedPermanently, "/create-note")
 	}
 	return context.Redirect(http.StatusMovedPermanently, "/")
@@ -167,22 +180,53 @@ func postLogin(context echo.Context) error {
 			// TODO
 		}
 		context.Response().Header().Set("error", errCodeName)
-		fmt.Println("yanaErr.Err = ", yanaErr.Err)
 		return context.Redirect(http.StatusMovedPermanently, "/login")
 	}
 	if !isOk {
-		fmt.Println("isOk != false")
 		context.Response().Header().Set("error", "userDoesNotExist")
 		return context.Redirect(http.StatusMovedPermanently, "/login")
 	}
 	userid, err := yana.GetUserIDFromEmail(context.FormValue("email"))
 	if err != nil {
-		fmt.Println("After yana.GetUserId: err != nil", err)
 		context.Response().Header().Set("error", errCodeName)
 		return context.Redirect(http.StatusMovedPermanently, "/login")
 	}
-	fmt.Println("Everything is fine")
 	addCookieToContext(&context, USER_ID_COOKIE_NAME, userid)
+	return context.Redirect(http.StatusMovedPermanently, "/")
+}
+
+func postEditNote(context echo.Context) error {
+	fmt.Println("postEditNote called")
+	/*
+		I originally planed to save the original title as a hidden input in note.html
+		because it is not possible to change the filename in MinIO so yana.UpdateNote
+		just creates a new note if the title changed. Problem: I realised that it
+		isn't possible to modify the content (except for appending something to
+		the end of a file). So
+	*/
+	noteId := context.FormValue("noteId")
+	noteIdAlt := context.QueryParam("noteId")
+	title := context.FormValue("title")
+	content := context.FormValue("content")
+	userId, err := context.Cookie(USER_ID_COOKIE_NAME)
+	if err != nil {
+		return context.Redirect(http.StatusMovedPermanently, "/edit-note?noteId="+noteId)
+	}
+	fmt.Println("noteId in server.postEditNote:", noteId)
+	fmt.Println("alt noteId:", noteIdAlt)
+	updateNoteState, err := yana.UpdateNote(userId.Value, noteId, title, content)
+	fmt.Println("State:", updateNoteState)
+	if err != nil {
+		fmt.Printf("err:%w\n", err)
+	}
+	return context.Redirect(http.StatusMovedPermanently, "/edit-note?noteId="+noteId)
+}
+
+// ------------ DELETE ------------
+
+// called from index.html
+func deleteDeleteNote(context echo.Context) error {
+	fmt.Println("deleteDeleteNote called")
 	return context.Redirect(http.StatusMovedPermanently, "/")
 }
 
@@ -197,11 +241,16 @@ func initRoutes(e *echo.Echo) {
 	e.GET("/welcome", getWelcome)
 	e.GET("/logout", getLogout)
 	e.GET("/edit-note", getEditNote)
-	e.GET("/delete-note", getDeleteNote)
 
 	e.POST("/login", postLogin)
 	e.POST("/create-note", postCreateNote)
 	e.POST("/register", postRegister)
+	e.POST("/edit-note", postEditNote)
+
+	// edit-note and delete-note are called from javascript in index.html
+	// because that unfortunately makes the most sense
+
+	e.DELETE("/delete-note", deleteDeleteNote)
 }
 
 func main() {
@@ -213,6 +262,6 @@ func main() {
 	echoServer := echo.New()
 	echoServer.Renderer = renderer
 	initRoutes(echoServer)
-	echoServer.Logger.Info("Started at: %s\n", time.Now())
 	echoServer.Logger.Fatal(echoServer.Start(":1323"))
+	echoServer.Logger.Info("Started at: %s\n", time.Now())
 }

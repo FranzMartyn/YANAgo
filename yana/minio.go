@@ -1,7 +1,7 @@
 package yana
 
 import (
-	"context" // Why does this exist????
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -26,6 +26,17 @@ type Note struct {
 	CreatedAtUTC     string
 	ContentShortened string
 }
+
+type UpdatedNoteState struct {
+	State int
+}
+
+const (
+	NewNoteState = iota
+	NothingHappenedState
+	OldNoteState
+	NoteDeletedState
+)
 
 type MinIOConfig struct {
 	Url       string `yaml:"url"`
@@ -94,26 +105,22 @@ func GetAllNotesOfUser(bucketName string) ([]Note, error) {
 	if err != nil {
 		return []Note{}, nil
 	}
-	cont := context.Background()
-	objectChannel := minioClient.ListObjects(cont, bucketName, minio.ListObjectsOptions{Recursive: true})
+	objectChannel := minioClient.ListObjects(yanaContext, bucketName, minio.ListObjectsOptions{Recursive: true})
 	var notes []Note
-	i := -1 // -1 so the index is 0 at the start of the for (each) loop
+	i := -1 // -1 so the index is 0 at the start of the for (-each) loop
 	for objectInfo := range objectChannel {
 		i++
 		if objectInfo.Err != nil {
 			fmt.Printf("yana.GetAllNotesOfUser() -> Failing to get object at index %d because '%w'\n\n", i, objectInfo.Err)
 			continue
 		}
-		actualNote, err := GetNote(bucketName, objectInfo.Key) // Might not actually work lol
+		actualNote, err := GetNoteFromBucketAndNotename(bucketName, objectInfo.Key) // Might not actually work lol
 		if err != nil {
 			fmt.Printf("yana.GetAllNotesOfUser() -> Failing to fetch actual object at index %d because '%w'\n\n", i, err)
 			continue
 		}
 		notes = append(notes, actualNote)
 	}
-	fmt.Println("notes:", notes)
-	fmt.Println("notes len:", len(notes))
-	fmt.Println("Last index = ", i)
 	return notes, nil
 }
 
@@ -124,35 +131,63 @@ func shortenNoteContent(content string) string {
 	return content
 }
 
-func GetNote(bucketName, noteName string) (Note, error) {
+func GetNoteFromBucketAndNotename(bucketName, noteName string) (Note, error) {
 	err := checkMinIOClient()
 	if err != nil {
-		return Note{}, fmt.Errorf("yana.GetNote() -> (Fail generating minioclient) Couldn't create minio because: '%w'\n", err)
+		return Note{}, fmt.Errorf("yana.GetNoteFromBucketAndNotename() -> (Fail generating minioclient) Couldn't create minio because: '%w'\n", err)
 	}
-	fmt.Println("bucketName in GetNote: ", bucketName)
-	fmt.Println("noteName in GetNote: ", bucketName)
 	object, err := minioClient.GetObject(yanaContext, bucketName, noteName, minio.GetObjectOptions{})
 	if err != nil {
-		return Note{}, fmt.Errorf("Couldn't get note in yana.GetNote(): %w", err)
+		return Note{}, fmt.Errorf("Couldn't get note in yana.GetNoteFromBucketAndNotename(): %w", err)
 	}
 	defer object.Close()
 
-	_, err = object.Stat()
-	if err != nil {
-		return Note{}, fmt.Errorf("Couldn't get note metadata in yana.GetNote(): %w", err)
-	}
+	// I can't remember why this exists
+	// _, err = object.Stat()
+	// if err != nil {
+	// 	return Note{}, fmt.Errorf("Couldn't get note metadata in yana.GetNoteFromBucketAndNotename(): %w", err)
+	// }
 	content, err := io.ReadAll(object)
 	if err != nil {
-		return Note{}, fmt.Errorf("Couldn't get note content in yana.GetNote(): %w", err)
+		return Note{}, fmt.Errorf("Couldn't get note content in yana.GetNoteFromBucketAndNotename(): %w", err)
 	}
-	postgresNoteInfo, err := GetPostgresNoteInfo(bucketName, noteName)
+	postgresNoteInfo, err := getPostgresNoteFromBucketAndNotename(bucketName, noteName)
 	if err != nil {
-		return Note{}, fmt.Errorf("Couldn't get note metadata (from postgres) in yana.GetNote(): %w", err)
+		return Note{}, fmt.Errorf("Couldn't get note metadata (from postgres) in yana.GetNoteFromBucketAndNotename(): %w", err)
 	}
 	return Note{
 		PostgresId:       postgresNoteInfo.Id,
 		Name:             noteName,
 		BucketName:       bucketName,
+		Content:          string(content),
+		CreatedAtUTC:     postgresNoteInfo.CreatedAtUTC,
+		ContentShortened: shortenNoteContent(string(content))}, nil
+}
+
+func GetNoteFromNoteId(postgresNoteId string) (Note, error) {
+	err := checkMinIOClient()
+	if err != nil {
+		return Note{}, fmt.Errorf("yana.GetNoteFromNoteId() -> (Fail generating minioclient) Couldn't create minio because: '%w'\n", err)
+	}
+	postgresNoteInfo, err := getPostgresNoteFromNoteId(postgresNoteId)
+	if err != nil {
+		return Note{}, fmt.Errorf("yana.GetNoteFromNoteId() -> (Fail getting postgresNoteInfo) Couldn't get postgresNoteInfo: '%w'\n", err)
+	}
+
+	// I am not using GetNoteFromBucketAndNotename() because then I would have a second unnecessary call to postgres
+	object, err := minioClient.GetObject(yanaContext, postgresNoteInfo.Bucketname, postgresNoteInfo.Filename, minio.GetObjectOptions{})
+	if err != nil {
+		return Note{}, fmt.Errorf("Couldn't get note in yana.GetNoteFromNoteId(): %w", err)
+	}
+	defer object.Close()
+	content, err := io.ReadAll(object)
+	if err != nil {
+		return Note{}, fmt.Errorf("Couldn't get note content in yana.GetNoteFromNoteId(): %w", err)
+	}
+	return Note{
+		PostgresId:       postgresNoteInfo.Id,
+		Name:             postgresNoteInfo.Filename,
+		BucketName:       postgresNoteInfo.Bucketname,
 		Content:          string(content),
 		CreatedAtUTC:     postgresNoteInfo.CreatedAtUTC,
 		ContentShortened: shortenNoteContent(string(content))}, nil
@@ -173,13 +208,13 @@ func NewBucket(bucketName string) error {
 func NewNote(bucketName, noteName, content string) (minio.UploadInfo, error) {
 	err := checkMinIOClient()
 	if err != nil {
-		fmt.Println("Some problem with checkMinIOClient: %w", err)
 		return minio.UploadInfo{}, nil
 	}
 	isExisting, yanaErr := doesNoteWithSameNameExist(bucketName, noteName)
 	if isExisting {
 		return minio.UploadInfo{}, fmt.Errorf("yana.NewNote() -> (Note already exists) Checked if note with same name exists: '%w'", yanaErr.Err)
 	}
+
 	// The data is inserted to postgres first before actually saving the note to MinIO
 	// because it feels a lot safer to remove a row in postgres than to remove an object in MinIO.
 	// I also think that it might be faster to delete a row than an object
@@ -192,10 +227,64 @@ func NewNote(bucketName, noteName, content string) (minio.UploadInfo, error) {
 	if err != nil {
 		return minio.UploadInfo{}, fmt.Errorf("yana.NewNote() -> (Fail generating minioclient) Couldn't create Client because: '%w'\n", err)
 	}
-	uploadInfo, err := minioClient.PutObject(yanaContext, bucketName, noteName, strings.NewReader(content), int64(len(content)), minio.PutObjectOptions{ContentType: "application/text"})
+	uploadInfo, err := minioClient.PutObject(yanaContext, bucketName, noteName, strings.NewReader(content),
+		int64(len(content)), minio.PutObjectOptions{ContentType: "application/text"})
 	if err != nil {
 		deleteRowOfNote(bucketName, noteName)
 		return minio.UploadInfo{}, fmt.Errorf("yana.NewNote() -> (Fail uploading Object) Couldn't create note because: '%w'\n", err)
 	}
 	return uploadInfo, nil
+}
+
+// NewNoteState = iota
+// OldNoteState
+// NothingHappenedState
+// NoteDeletedState
+func UpdateNote(bucketName, noteId, newNoteName, newContent string) (UpdatedNoteState, error) {
+	fmt.Println("noteId in UpdateNote:", noteId)
+	oldNote, err := GetNoteFromNoteId(noteId)
+	if err != nil {
+		return UpdatedNoteState{NothingHappenedState}, fmt.Errorf("Error in yana.UpdateNote() -> Couldn't fetch note because: '%w'\n", err)
+	}
+	oldNoteName := oldNote.Name
+	oldContent := oldNote.Content
+
+	isNameChanged := oldNoteName != newNoteName
+	isContentChanged := oldContent != newContent
+	if !isNameChanged && !isContentChanged {
+		// Not an error because the user hasn't changed anything then
+		return UpdatedNoteState{NothingHappenedState}, nil
+	}
+
+	if isNameChanged {
+		updateNoteNameInPostgres(noteId, newNoteName)
+	}
+	err = checkMinIOClient()
+	if err != nil {
+		return UpdatedNoteState{NothingHappenedState}, fmt.Errorf("Error in yana.UpdateNote() -> Couldn't create or check minio client because: '%w'\n", err)
+	}
+	// At this point, if either the name or content are changed, a new file has to be created either way instead of just modifying one aspect of it...
+	// Thanks MinIO devs :)
+	err = minioClient.RemoveObject(yanaContext, bucketName, oldNoteName, minio.RemoveObjectOptions{})
+	if err != nil {
+		return UpdatedNoteState{NothingHappenedState}, fmt.Errorf("Error in yana.UpdateNote() -> Couldn't remove file to replace it because: '%w'\n", err)
+	}
+
+	// This is the scary part: The original file has been removed, but what if the file can't be created with newNoteName and newContent?
+	_, newNoteErr := minioClient.PutObject(yanaContext, bucketName, newNoteName, strings.NewReader(newContent),
+		int64(len(newContent)), minio.PutObjectOptions{ContentType: "application/text"})
+	if err != nil {
+		// Create a new file with the old information
+		_, oldNoteErr := minioClient.PutObject(yanaContext, bucketName, oldNoteName, strings.NewReader(oldContent),
+			int64(len(oldContent)), minio.PutObjectOptions{ContentType: "application/text"})
+		if err != nil {
+			// This is a horrible state: The file has been deleted in minio but a new file couldn't be created at all
+			errString := "Error in yana.UpdateNote() -> Couldn't create note with either new or old information " +
+				"because: '%w' with the new information and '%w' with the old information"
+			return UpdatedNoteState{NoteDeletedState}, fmt.Errorf(errString, newNoteErr, oldNoteErr)
+		}
+		return UpdatedNoteState{OldNoteState}, nil
+	}
+	return UpdatedNoteState{NewNoteState}, nil
+
 }

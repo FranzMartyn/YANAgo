@@ -343,27 +343,6 @@ footer {
     color: #b0b0b0;
 }
 
-.testimonial-section {
-    background-color: #252525;
-    border-radius: 8px;
-    padding: 30px;
-    margin: 40px 0;
-    text-align: center;
-}
-
-.testimonial-section blockquote {
-    font-size: 1.2rem;
-    font-style: italic;
-    color: #c0c0c0;
-    margin-bottom: 15px;
-}
-
-.testimonial-section cite {
-    color: #7ba9e0;
-    font-style: normal;
-    font-weight: 500;
-}
-
 .cta-container {
     text-align: center;
     margin: 50px 0 20px;
