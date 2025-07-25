@@ -74,7 +74,6 @@ func IsLoginOk(email string, password string) (bool, YanaError) {
 	row.Scan(&actualPassword)
 	defer db.Close()
 	if row.Err() == sql.ErrNoRows || actualPassword == "" {
-		fmt.Printf("actualPassword = \"%s\"\n", actualPassword)
 		return false, YanaError{Code: UserNotFound, Err: fmt.Errorf("yana.IsLoginOk() -> Couldn't find user")}
 	} else if err != nil {
 		return false, YanaError{Code: ConnectionFailed, Err: fmt.Errorf("yana.IsLoginOk() -> Couldn't execute query: %w", err)}
@@ -273,7 +272,6 @@ func getPostgresNoteFromNoteId(postgresNoteId string) (PostgresNote, error) {
 	var bucketname string
 	var filename string
 	var creationDate string
-	fmt.Println("postgresNoteID:", postgresNoteId)
 	query := `SELECT bucketname, filename, created_at_utc FROM note WHERE id = $1`
 	err = db.QueryRow(query, postgresNoteId).Scan(&bucketname, &filename, &creationDate)
 	if err != nil {

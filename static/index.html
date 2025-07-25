@@ -51,7 +51,22 @@
                             <h3>{{ note.Name }}</h3>
                             <p>{{ note.ContentShortened }}</p>
                             <div class="note-footer">
-                                <span class="date">{{ note.CreatedAtUTC }}</span>
+                                <span class="note-time" data-utc="{{ note.CreatedAtUTC }}"></span>
+                                <script>
+                                    // ChatGPT generated
+                                    // This takes data-utc and displays
+                                    // the time in the user's timezone
+                                    document.addEventListener("DOMContentLoaded", function() {
+                                        const noteTimeElements = document.querySelectorAll(".note-time")
+                                        noteTimeElements.forEach(el => {
+                                            const creationDate = new Date(el.dataset.utc)
+                                            el.textContent = creationDate.toLocaleString(undefined, {
+                                                dateStyle: 'medium',
+                                                timeStyle: 'short'
+                                            });
+                                        });
+                                    });
+                                </script>
                                 <a class="edit-link" href="edit-note?noteId={{note.PostgresId}}">Edit</a>
                                 <a class="delete-link" onclick="confirmDelete('{{note.PostgresId}}')">Delete</a>
                             </div>

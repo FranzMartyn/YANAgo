@@ -12,29 +12,53 @@
             <h1>YANAgo</h1>
             <nav>
                 <ul>
-                    <li><a href="index">Notes</a></li>
-                    <li><a href="create-note" class="active">Create Note</a></li>
+                    {% if isNewNote %}
+                        <li><a href="#" onclick="confirmCreationExit('index');event.preventDefault();" >Notes</a></li>
+                    {% else %}
+                        <li><a onclick="confirmEditExit('{{noteId}}', 'index');event.preventDefault();" href="#">Notes</a></li>
+                    {% endif %}
+
+                    {% if isNewNote %}
+                        <li><a href="#" onclick="confirmCreationExit('create-note');event.preventDefault();" class="active">Create Note</a></li>
+                    {% else %}
+                        <li><a onclick="confirmEditExit('{{noteId}}', 'create-note');event.preventDefault();" href="#">Create Note</a></li>
+                    {% endif %}
+
                     <li><a href="logout" class="logout-link">Logout</a></li>
                 </ul>
             </nav>
         </header>
         <script>
-            function confirmCreationCancel() {
-                if (confirm("Are you sure you want to cancel? All changes will be lost.")) {
-                    window.location.href = "/index";
+            function confirmCreationExit(redirectUrl) {
+                isTextInTitle = document.getElementById("formTitle").value !== ""
+                isTextInContent = document.getElementById("formContent").value !== ""
+                confirmText = (redirectUrl === "/create-note") ? "Are you sure you want to clear the note? All changes will be lost." : "Are you sure you want to leave this page? All changes will be lost."
+                if (isTextInTitle || isTextInContent) {
+                    if (confirm(confirmText)) {
+                        window.location.href = redirectUrl;
+                    }
+                } else {
+                    window.location.href = redirectUrl;
                 }
             };
-            function confirmEditCancel(noteId) {
-                if (confirm("Are you sure you want to cancel? All changes will be lost.")) {
-                    fetch("/edit-note/", {
-                        method: 'GET',
-                        body: JSON.stringify({ noteId: noteId }),
-                        headers: {
-                            'Content-Type': 'application/json',
-                        }
-                    });
+            function confirmEditExit(noteId, redirectUrl) {
+                const isTitleChanged = document.getElementById("formTitle").value !== "{{ noteTitle }}"
+                const isContentChanged = document.getElementById("formContent").value !== "{{ noteContent }}"
+                const isExecutedFromCancelButton = redirectUrl.startsWith('/edit-note')
+                if (isTitleChanged || isContentChanged) {
+                    confirmText = (isExecutedFromCancelButton) ? "Are you sure you want to reset your changes? All changes will be lost." : "Are you sure you want to leave this page? All changes will be lost."
+                    if (confirm(confirmText)) {
+                        window.location.href = redirectUrl;
+                    }
+                } else {
+                    
+                    if (isExecutedFromCancelButton) {
+                        window.location.href = "/index";
+                    } else {
+                        window.location.href = redirectUrl
+                    }
                 }
-            };
+            }
         </script>
         
         <main>
@@ -47,20 +71,20 @@
                 <form action="{{formLink}}" method="post" class="note-form">
                     <div class="form-group">
                         <label for="title">Title</label>
-                        <input type="text" id="title" name="title" required value="{{noteTitle}}">
+                        <input type="text" id="formTitle" name="title" required value="{{noteTitle}}">
                     </div>
                     
                     <div class="form-group">
                         <label for="content">Content</label>
-                        <textarea id="content" name="content" rows="10" required>{{noteContent}}</textarea>
+                        <textarea name="content" id="formContent" rows="10" required>{{noteContent}}</textarea>
                     </div>
                     
                     <div class="form-actions">
                         {% if isNewNote %}
-                            <a class="btn btn-secondary" id="cancelbutton" name="cancelbutton" onclick="confirmCreationCancel()">Cancel</a>
+                            <a class="btn btn-secondary" id="cancelbutton" name="cancelbutton" href="#" onclick="confirmCreationExit('/create-note');event.preventDefault();">Clear</a>
                         {% else %}
                             <input type="hidden" name="noteId" value="{{noteId}}">
-                            <a class="btn btn-secondary" id="cancelbutton" name="cancelbutton" onclick="confirmEditCancel('{{noteId}}')">Cancel</a>
+                            <a class="btn btn-secondary" id="cancelbutton" name="cancelbutton" onclick="confirmEditExit('{{noteId}}', '/edit-note?noteId={{noteId}}');event.preventDefault();" href="#">Reset</a>
                         {% endif %}
                         <button type="submit" class="btn">Save Note</button>
                     </div>

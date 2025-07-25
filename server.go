@@ -40,7 +40,7 @@ func (renderer Renderer) Render(writer io.Writer, site string, data interface{},
 		fmt.Println(err)
 		return err
 	}
-	fmt.Println("\nNEW REQUEST\n")
+	fmt.Println("NEW REQUEST")
 
 	return template.ExecuteWriter(context, writer)
 }
@@ -49,18 +49,16 @@ func (renderer Renderer) Render(writer io.Writer, site string, data interface{},
 
 func getIndex(context echo.Context) error {
 	cookie, err := context.Cookie(USER_ID_COOKIE_NAME)
-	if err != nil || cookie.String() == "" {
+	if err != nil || cookie.Value == "" {
 		return context.Redirect(http.StatusMovedPermanently, "/welcome")
 	}
 	notes, err := yana.GetAllNotesOfUser(cookie.Value)
 	if err != nil {
-		fmt.Println("Some error in getIndex:", err)
 	}
 	noNotes := false
 	if len(notes) == 0 {
 		noNotes = true
 	}
-	fmt.Println("notes:", notes)
 	return context.Render(200, "static/index.html", pongo2.Context{"notes": notes, "noNotes": noNotes})
 }
 
@@ -113,19 +111,13 @@ func getWelcome(context echo.Context) error {
 func getEditNote(context echo.Context) error {
 	postgresNoteId := context.QueryParam("noteId")
 	if postgresNoteId == "" {
-		fmt.Printf("postgresNoteId is empty: '%s'", postgresNoteId)
 		return context.Redirect(http.StatusMovedPermanently, "/index")
 	}
 	note, err := yana.GetNoteFromNoteId(postgresNoteId)
 	if err != nil {
-		fmt.Printf("err != nil in getEditNote: %w\n", err)
-		fmt.Println("postgresNoteId:", postgresNoteId)
 		context.Response().Header().Set("Error", "CouldNotFindNoteFromId")
 		return context.Redirect(http.StatusMovedPermanently, "/index")
 	}
-	fmt.Println("everything is fine and note id:", postgresNoteId)
-	fmt.Printf("err: '%w'", err)
-	fmt.Println(note)
 	return context.Render(200, "static\\note.html", pongo2.Context{"isNewNote": false, "formLink": "/edit-note", "noteTitle": note.Name, "noteContent": note.Content, "noteId": note.PostgresId})
 }
 
@@ -146,7 +138,6 @@ func postRegister(context echo.Context) error {
 	}
 	err = yana.NewBucket(userId)
 	if err != nil {
-		fmt.Printf("postRegister -> Couldn't create bucket: %w\n", err)
 		context.Response().Header().Set("error", "CouldNotCreateBucket")
 		// Return to register but say that bucket couldn't be created
 		return context.Redirect(http.StatusMovedPermanently, "/register")
@@ -158,7 +149,6 @@ func postRegister(context echo.Context) error {
 func postCreateNote(context echo.Context) error {
 	userId, err := context.Cookie(USER_ID_COOKIE_NAME)
 	if err != nil || userId.Value == "" {
-		fmt.Printf("postCreateNote(): userId.String() is empty ('%s') or err != nil (%w)\n", userId.String(), err)
 		context.Response().Header().Set("error", "CouldNotCreateNote")
 		return context.Redirect(http.StatusMovedPermanently, "/")
 	}
@@ -170,8 +160,6 @@ func postCreateNote(context echo.Context) error {
 }
 
 func postLogin(context echo.Context) error {
-	fmt.Printf("postLogin() email: \"%s\"\n", context.FormValue("email"))
-	fmt.Printf("postLogin() password: \"%s\"\n", context.FormValue("password"))
 	isOk, yanaErr := yana.IsLoginOk(context.FormValue("email"), context.FormValue("password"))
 	errCodeName := "errorCodeNamePlaceholder" // TODO
 	if yanaErr.Err != nil {
@@ -196,7 +184,6 @@ func postLogin(context echo.Context) error {
 }
 
 func postEditNote(context echo.Context) error {
-	fmt.Println("postEditNote called")
 	/*
 		I originally planed to save the original title as a hidden input in note.html
 		because it is not possible to change the filename in MinIO so yana.UpdateNote
@@ -212,12 +199,8 @@ func postEditNote(context echo.Context) error {
 	if err != nil {
 		return context.Redirect(http.StatusMovedPermanently, "/edit-note?noteId="+noteId)
 	}
-	fmt.Println("noteId in server.postEditNote:", noteId)
-	fmt.Println("alt noteId:", noteIdAlt)
 	updateNoteState, err := yana.UpdateNote(userId.Value, noteId, title, content)
-	fmt.Println("State:", updateNoteState)
 	if err != nil {
-		fmt.Printf("err:%w\n", err)
 	}
 	return context.Redirect(http.StatusMovedPermanently, "/edit-note?noteId="+noteId)
 }

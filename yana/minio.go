@@ -94,7 +94,6 @@ func doesNoteWithSameNameExist(bucketName, noteName string) (bool, YanaError) {
 	}
 	_, err = minioClient.GetObject(yanaContext, bucketName, noteName, minio.GetObjectOptions{})
 	if err != nil {
-		fmt.Printf("Note Already Exists: %w", err)
 		return true, YanaError{Code: NoError, Err: err}
 	}
 	return false, YanaError{Code: NoError, Err: nil}
@@ -111,12 +110,10 @@ func GetAllNotesOfUser(bucketName string) ([]Note, error) {
 	for objectInfo := range objectChannel {
 		i++
 		if objectInfo.Err != nil {
-			fmt.Printf("yana.GetAllNotesOfUser() -> Failing to get object at index %d because '%w'\n\n", i, objectInfo.Err)
 			continue
 		}
 		actualNote, err := GetNoteFromBucketAndNotename(bucketName, objectInfo.Key) // Might not actually work lol
 		if err != nil {
-			fmt.Printf("yana.GetAllNotesOfUser() -> Failing to fetch actual object at index %d because '%w'\n\n", i, err)
 			continue
 		}
 		notes = append(notes, actualNote)
@@ -125,8 +122,8 @@ func GetAllNotesOfUser(bucketName string) ([]Note, error) {
 }
 
 func shortenNoteContent(content string) string {
-	if len(content) >= 10 {
-		return content[:6] + "..."
+	if len(content) >= 25 {
+		return content[:21] + "..."
 	}
 	return content
 }
@@ -236,12 +233,7 @@ func NewNote(bucketName, noteName, content string) (minio.UploadInfo, error) {
 	return uploadInfo, nil
 }
 
-// NewNoteState = iota
-// OldNoteState
-// NothingHappenedState
-// NoteDeletedState
 func UpdateNote(bucketName, noteId, newNoteName, newContent string) (UpdatedNoteState, error) {
-	fmt.Println("noteId in UpdateNote:", noteId)
 	oldNote, err := GetNoteFromNoteId(noteId)
 	if err != nil {
 		return UpdatedNoteState{NothingHappenedState}, fmt.Errorf("Error in yana.UpdateNote() -> Couldn't fetch note because: '%w'\n", err)
