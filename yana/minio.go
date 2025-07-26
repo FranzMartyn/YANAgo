@@ -49,6 +49,21 @@ var yanaContext context.Context = context.Background()
 
 const MINIO_CONFIG_PATH = "db/minio.yml"
 
+// Just for myself to have an easy to time to print the error
+func (updatedNoteState UpdatedNoteState) ToString() string {
+	switch updatedNoteState.State {
+	case NewNoteState:
+		return "NewNoteState: Succesfully updated note"
+	case NothingHappenedState:
+		return "NothingHappenedState: Note couldn't be updated and is (still) in it's original state"
+	case OldNoteState:
+		return "OldNoteState: Note couldn't be updated and is back to it's original state"
+	case NoteDeletedState:
+		return "NoteDeletedState: Note couldn't be updated and has been unfortunately deleted"
+	}
+	return ""
+}
+
 func readMinIOConfig(path string) (MinIOConfig, error) {
 	file, err := os.ReadFile(path)
 	if err != nil {
@@ -225,7 +240,7 @@ func NewNote(bucketName, noteName, content string) (minio.UploadInfo, error) {
 		return minio.UploadInfo{}, fmt.Errorf("yana.NewNote() -> (Fail generating minioclient) Couldn't create Client because: '%w'\n", err)
 	}
 	uploadInfo, err := minioClient.PutObject(yanaContext, bucketName, noteName, strings.NewReader(content),
-		int64(len(content)), minio.PutObjectOptions{ContentType: "application/text"})
+		int64(len(content)), minio.PutObjectOptions{})
 	if err != nil {
 		deleteRowOfNote(bucketName, noteName)
 		return minio.UploadInfo{}, fmt.Errorf("yana.NewNote() -> (Fail uploading Object) Couldn't create note because: '%w'\n", err)
@@ -264,11 +279,11 @@ func UpdateNote(bucketName, noteId, newNoteName, newContent string) (UpdatedNote
 
 	// This is the scary part: The original file has been removed, but what if the file can't be created with newNoteName and newContent?
 	_, newNoteErr := minioClient.PutObject(yanaContext, bucketName, newNoteName, strings.NewReader(newContent),
-		int64(len(newContent)), minio.PutObjectOptions{ContentType: "application/text"})
+		int64(len(newContent)), minio.PutObjectOptions{})
 	if err != nil {
 		// Create a new file with the old information
 		_, oldNoteErr := minioClient.PutObject(yanaContext, bucketName, oldNoteName, strings.NewReader(oldContent),
-			int64(len(oldContent)), minio.PutObjectOptions{ContentType: "application/text"})
+			int64(len(oldContent)), minio.PutObjectOptions{})
 		if err != nil {
 			// This is a horrible state: The file has been deleted in minio but a new file couldn't be created at all
 			errString := "Error in yana.UpdateNote() -> Couldn't create note with either new or old information " +
@@ -279,4 +294,37 @@ func UpdateNote(bucketName, noteId, newNoteName, newContent string) (UpdatedNote
 	}
 	return UpdatedNoteState{NewNoteState}, nil
 
+}
+
+func DeleteNoteFromNoteId(noteId string) error {
+	err := checkMinIOClient()
+	if err != nil {
+		return fmt.Errorf("Error in yana.DeleteNoteFromNoteId() -> Couldn't create or check minio client because: '%w'\n", err)
+	}
+
+	// Pretty similiar to UpdateNote()
+	// 1. Try to delete note info in postgres
+	// 2. Try to delete the note object in minio
+	// 	  2.1 If 2. wasn't succesful, try to re-insert the data into postgres
+	// 	  2.2 If 3. wasn't succesfu, say sorry
+	postgresNote, err := getPostgresNoteFromNoteId(noteId)
+	if err != nil {
+		return fmt.Errorf("yana.DeleteNoteFromNoteId() -> Couldn't get Info from Postgres: '%w'\n", err)
+	}
+
+	err = deleteNoteInPostgres(noteId)
+	if err != nil {
+		return fmt.Errorf("yana.DeleteNoteFromNoteId() -> Couldn't delete note in Postgres: '%w'\n", err)
+	}
+
+	err = minioClient.RemoveObject(yanaContext, postgresNote.Bucketname, postgresNote.Filename, minio.RemoveObjectOptions{})
+	if err != nil {
+		err = insertNoteInPostgres(noteId, postgresNote.Bucketname, postgresNote.Filename, postgresNote.CreatedAtUTC)
+		if err != nil {
+			// This state is BAD
+			return fmt.Errorf("yana.DeleteNoteFromNoteId() -> Couldn't remove note in MinIO, but couldn't re-insert data in PostgreSQL. I'm sorry :(  :'%w'\n", err)
+		}
+		return fmt.Errorf("yana.DeleteNoteFromNoteId() -> Couldn't remove note in MinIO: '%w'\n", err)
+	}
+	return nil
 }

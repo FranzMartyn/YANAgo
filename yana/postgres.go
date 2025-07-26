@@ -218,26 +218,40 @@ func deleteRowOfNote(bucketName, fileName string) error {
 	return nil
 }
 
-func insertNewNoteInPostgres(userId, filename string) error {
+func insertNewNoteInPostgres(bucketName, filename string) error {
 	db, err := connectToPostgres()
 	defer db.Close()
 	if err != nil {
-		return fmt.Errorf("Error in yana.InsertNewNoteInPostgres() -> couldn't create to postgres because: %x", err)
+		return fmt.Errorf("Error in yana.insertNewNoteInPostgres() -> couldn't create to postgres because: %x", err)
 	}
 
-	isNoteInDB, yanaErr := doesNoteWithSameNameExist(userId, filename)
+	isNoteInDB, yanaErr := doesNoteWithSameNameExist(bucketName, filename)
 	if yanaErr.Err != nil {
-		return fmt.Errorf("Error in yana.InsertNewNoteInPostgres() -> Note in user bucket with same name exists: %w", yanaErr.Err)
+		return fmt.Errorf("Error in yana.insertNewNoteInPostgres() -> Note in user bucket with same name exists: %w", yanaErr.Err)
 	}
 	if isNoteInDB {
-		return fmt.Errorf("Error in yana.InsertNewNoteInPostgres() -> Note with same name is already in user's bucket")
+		return fmt.Errorf("Error in yana.insertNewNoteInPostgres() -> Note with same name is already in user's bucket")
 	}
 
-	// var id string
 	query := `INSERT INTO note (id, bucketname, filename, created_at_utc) VALUES (gen_random_uuid(), $1, $2, timezone('utc', NOW()::timestamp))`
-	_, err = db.Exec(query, userId, filename) //.Scan(&id)
+	_, err = db.Exec(query, bucketName, filename)
 	if err != nil {
-		return fmt.Errorf("Error in yana.InsertNewNoteInPostgres() -> Insert query wasn't succesful: %w", err)
+		return fmt.Errorf("Error in yana.insertNewNoteInPostgres() -> Insert query wasn't succesful: %w", err)
+	}
+
+	return nil
+}
+
+func insertNoteInPostgres(noteId, bucketName, filename, creationDateUTC string) error {
+	db, err := connectToPostgres()
+	defer db.Close()
+	if err != nil {
+		return fmt.Errorf("Error in yana.insertNoteInPostgres() -> couldn't create to postgres because: %x", err)
+	}
+	query := `INSERT INTO note (id, bucketname, filename, created_at_utc) VALUES ($1, $2, $3, %4)`
+	_, err = db.Exec(query, bucketName, filename)
+	if err != nil {
+		return fmt.Errorf("Error in yana.insertNoteInPostgres() -> Insert query wasn't succesful: %w", err)
 	}
 
 	return nil
@@ -290,6 +304,20 @@ func updateNoteNameInPostgres(noteId, newNoteName string) error {
 	_, err = db.Exec(query, newNoteName, noteId)
 	if err != nil {
 		fmt.Errorf("Error in yana.updateNoteNameInPostgres -> Couldn't execute update query because '%w'\n", err)
+	}
+	return nil
+}
+
+func deleteNoteInPostgres(noteId string) error {
+	db, err := connectToPostgres()
+	if err != nil {
+		fmt.Errorf("Error in yana.deleteNoteInPostgres() -> Couldn't connect to Postgres because '%w'\n", err)
+	}
+	defer db.Close()
+	query := `DELETE FROM note WHERE  id=$1`
+	_, err = db.Exec(query, noteId)
+	if err != nil {
+		fmt.Errorf("Error in yana.deleteNoteInPostgres() -> Couldn't execute delete query because '%w'\n", err)
 	}
 	return nil
 }

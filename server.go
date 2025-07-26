@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -19,6 +20,8 @@ const USER_ID_COOKIE_NAME = "user"
 type Renderer struct {
 	Debug bool
 }
+
+// ------------ MISC. ------------
 
 func (renderer Renderer) Render(writer io.Writer, site string, data interface{}, c echo.Context) error {
 	var context pongo2.Context
@@ -45,24 +48,34 @@ func (renderer Renderer) Render(writer io.Writer, site string, data interface{},
 	return template.ExecuteWriter(context, writer)
 }
 
+func isLoggedIn(context echo.Context) bool {
+	cookie, err := context.Cookie(USER_ID_COOKIE_NAME)
+	return err == nil && cookie.Value != ""
+}
+
 // ------------ GET ------------
 
 func getIndex(context echo.Context) error {
-	cookie, err := context.Cookie(USER_ID_COOKIE_NAME)
-	if err != nil || cookie.Value == "" {
+	if !isLoggedIn(context) {
 		return context.Redirect(http.StatusMovedPermanently, "/welcome")
 	}
+	cookie, err := context.Cookie(USER_ID_COOKIE_NAME)
 	notes, err := yana.GetAllNotesOfUser(cookie.Value)
 	if err != nil {
+		fmt.Printf("Err while GET /index: %w", err)
+		return context.Redirect(http.StatusMovedPermanently, "/welcome")
 	}
-	noNotes := false
-	if len(notes) == 0 {
-		noNotes = true
-	}
-	return context.Render(200, "static/index.html", pongo2.Context{"notes": notes, "noNotes": noNotes})
+
+	// * NOTE: MinIO AND PostgreSQL are saving the filename with the .txt file extension.
+	// But the file extension shouldn't be displayed to the user
+	// notes = yana.RemoveExtensionFromNotes(notes)
+	return context.Render(200, "static/index.html", pongo2.Context{"notes": notes, "noNotes": len(notes) == 0})
 }
 
 func getRoot(context echo.Context) error {
+	if !isLoggedIn(context) {
+		return context.Redirect(http.StatusMovedPermanently, "/welcome")
+	}
 	return context.Redirect(http.StatusMovedPermanently, "/index")
 }
 
@@ -96,19 +109,13 @@ func getRegister(context echo.Context) error {
 }
 
 func getWelcome(context echo.Context) error {
-	var loggedIn bool
-	cookie, err := context.Cookie(USER_ID_COOKIE_NAME)
-	if err != nil {
-		loggedIn = false
-	} else if cookie.Value == "" {
-		loggedIn = false
-	} else {
-		loggedIn = true
-	}
-	return context.Render(200, "static/welcome.html", pongo2.Context{"isLoggedIn": loggedIn})
+	return context.Render(200, "static/welcome.html", pongo2.Context{"isLoggedIn": isLoggedIn(context)})
 }
 
 func getEditNote(context echo.Context) error {
+	if !isLoggedIn(context) {
+		return context.Render(200, "static/welcome.html", pongo2.Context{})
+	}
 	postgresNoteId := context.QueryParam("noteId")
 	if postgresNoteId == "" {
 		return context.Redirect(http.StatusMovedPermanently, "/index")
@@ -152,7 +159,7 @@ func postCreateNote(context echo.Context) error {
 		context.Response().Header().Set("error", "CouldNotCreateNote")
 		return context.Redirect(http.StatusMovedPermanently, "/")
 	}
-	_, err = yana.NewNote(userId.Value, context.FormValue("title")+".txt", context.FormValue("content"))
+	_, err = yana.NewNote(userId.Value, context.FormValue("title"), context.FormValue("content"))
 	if err != nil {
 		context.Redirect(http.StatusMovedPermanently, "/create-note")
 	}
@@ -188,11 +195,10 @@ func postEditNote(context echo.Context) error {
 		I originally planed to save the original title as a hidden input in note.html
 		because it is not possible to change the filename in MinIO so yana.UpdateNote
 		just creates a new note if the title changed. Problem: I realised that it
-		isn't possible to modify the content (except for appending something to
-		the end of a file). So
+		isn't possible to only modify the content of an existing file (except for appending something to
+		the end of a file).
 	*/
 	noteId := context.FormValue("noteId")
-	noteIdAlt := context.QueryParam("noteId")
 	title := context.FormValue("title")
 	content := context.FormValue("content")
 	userId, err := context.Cookie(USER_ID_COOKIE_NAME)
@@ -201,6 +207,7 @@ func postEditNote(context echo.Context) error {
 	}
 	updateNoteState, err := yana.UpdateNote(userId.Value, noteId, title, content)
 	if err != nil {
+		fmt.Printf("Error while trying to update note: %s\n", updateNoteState.ToString())
 	}
 	return context.Redirect(http.StatusMovedPermanently, "/edit-note?noteId="+noteId)
 }
@@ -209,8 +216,18 @@ func postEditNote(context echo.Context) error {
 
 // called from index.html
 func deleteDeleteNote(context echo.Context) error {
-	fmt.Println("deleteDeleteNote called")
-	return context.Redirect(http.StatusMovedPermanently, "/")
+	jsonMap := make(map[string]interface{})
+	err := json.NewDecoder(context.Request().Body).Decode(&jsonMap)
+	if err != nil {
+		fmt.Printf("Error in deleteDeleteNote: %w", err)
+		return context.Redirect(http.StatusMovedPermanently, "/")
+	}
+	var noteId string = jsonMap["noteId"].(string)
+	err = yana.DeleteNoteFromNoteId(noteId)
+	if err != nil {
+		fmt.Printf("Could get noteId but failed deleting note: %w", err)
+	}
+	return context.Redirect(http.StatusMovedPermanently, "/index")
 }
 
 func initRoutes(e *echo.Echo) {
@@ -237,7 +254,6 @@ func initRoutes(e *echo.Echo) {
 }
 
 func main() {
-
 	renderer := Renderer{
 		Debug: false,
 	}
