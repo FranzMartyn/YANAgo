@@ -1,7 +1,3 @@
-<div style="text-align: center;">
-  <img src="assets/logo.png" alt="Alt text" width="300">
-</div>
-
 # YANAgo
 
 YANAgo is, as the name implies, **Y**et **A**nother **N**otes **A**pp - written in **go** and [labstack/echo](https://github.com/labstack/echo).
@@ -13,6 +9,8 @@ YANAgo is, as the name implies, **Y**et **A**nother **N**otes **A**pp - written 
 - A [MinIO server](https://min.io/docs/minio/linux/operations/installation.html)
 
 ## Installation
+
+First:
 
 ```bash
 git clone https://github.com/FranzMartyn/YANAgo
@@ -35,7 +33,9 @@ CREATE TABLE note (
 );
 ```
 
-(If you're not using PostgreSQL, replace `uuid` with `varchar(36)`)
+> [!IMPORTANT]
+> If your database systems does not have a `uuid` type, replace `uuid` with `varchar(36)` or an equivalent.
+> If your database system doesn't have `TIMESTAMP` either, replace `TIMESTAMP` with `TEXT` or an equivalent.
 
 Also create a table `user_`:
 
@@ -47,6 +47,9 @@ CREATE TABLE user_ (
     email citext
 );
 ```
+
+> [!IMPORTANT]
+> If your database systems doesn't have `citext`, replace `citext` with something like `TEXT COLLATE NOCASE` for SQLite, `VARCHAR(255) COLLATE utf8mb4_unicode_ci` for MySQL and MariaDB, or an equivalent, that allows text to be stored case-insensitively.
 
 PostgreSQL documentation about [citext](https://www.postgresql.org/docs/current/citext.html)
 

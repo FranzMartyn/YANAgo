@@ -64,9 +64,9 @@ func (updatedNoteState UpdatedNoteState) ToString() string {
 	return ""
 }
 
-// Turns out that unix-like systems support a plethora of characters
-// index.html already makes the input <= 1024 and filter out NUL and /
-// but checking here too just in case
+// Turns out that unix-like systems support a plethora of characters.
+// index.html already makes the input <= 1024 and filters out NUL and /, but
+// checking here too just in case
 func isFilenameOk(filename string) bool {
 	containsNULCharacter := strings.ContainsRune(filename, '\x00')
 	containsSlash := strings.ContainsRune(filename, '/')    // Can't even escape a slash in a file
