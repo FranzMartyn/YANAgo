@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	FILENAME_MAX_LEN             = 255
+	FILENAME_MAX_LEN             = 1024 // See https://min.io/docs/minio/windows/operations/concepts/thresholds.html#:~:text=Maximum%20length%20for%20object%20names
 	BUCKETNAME_MAX_LEN           = 63
 	DEFAULT_BUCKET_SERVER_REGION = "us-east-1" // See https://min.io/docs/minio/linux/developers/go/API.html#MakeBucket:~:text=(defaults%20to%20us%2Deast%2D1).
 )
@@ -49,7 +49,7 @@ var yanaContext context.Context = context.Background()
 
 const MINIO_CONFIG_PATH = "db/minio.yml"
 
-// Just for myself to have an easy to time to print the error
+// Just for myself/the developer to have an easy to time to print the error
 func (updatedNoteState UpdatedNoteState) ToString() string {
 	switch updatedNoteState.State {
 	case NewNoteState:
@@ -62,6 +62,17 @@ func (updatedNoteState UpdatedNoteState) ToString() string {
 		return "NoteDeletedState: Note couldn't be updated and has been unfortunately deleted"
 	}
 	return ""
+}
+
+// Turns out that unix-like systems support a plethora of characters
+// index.html already makes the input <= 1024 and filter out NUL and /
+// but checking here too just in case
+func isFilenameOk(filename string) bool {
+	containsNULCharacter := strings.ContainsRune(filename, '\x00')
+	containsSlash := strings.ContainsRune(filename, '/')    // Can't even escape a slash in a file
+	isDotOrDotDot := filename == "." || filename == ".."    // I don't know a better name for this variable
+	isLongerThanAllowed := len(filename) > FILENAME_MAX_LEN // Only limited by the S3 Api
+	return !containsNULCharacter && !containsSlash && !isLongerThanAllowed && !isDotOrDotDot
 }
 
 func readMinIOConfig(path string) (MinIOConfig, error) {
@@ -144,9 +155,13 @@ func shortenNoteContent(content string) string {
 }
 
 func GetNoteFromBucketAndNotename(bucketName, noteName string) (Note, error) {
+	if !isFilenameOk(noteName) {
+		return Note{}, fmt.Errorf("Error in yana.GetNoteFromBucketAndNotename(): Filename is not ok")
+	}
+
 	err := checkMinIOClient()
 	if err != nil {
-		return Note{}, fmt.Errorf("yana.GetNoteFromBucketAndNotename() -> (Fail generating minioclient) Couldn't create minio because: '%w'\n", err)
+		return Note{}, fmt.Errorf("yana.GetNoteFromBucketAndNotename() -> Couldn't create minio because: '%w'\n", err)
 	}
 	object, err := minioClient.GetObject(yanaContext, bucketName, noteName, minio.GetObjectOptions{})
 	if err != nil {
@@ -218,6 +233,10 @@ func NewBucket(bucketName string) error {
 }
 
 func NewNote(bucketName, noteName, content string) (minio.UploadInfo, error) {
+	if !isFilenameOk(noteName) {
+		return minio.UploadInfo{}, fmt.Errorf("Error in yana.NewNote(): Filename is not ok")
+	}
+
 	err := checkMinIOClient()
 	if err != nil {
 		return minio.UploadInfo{}, nil
@@ -249,6 +268,10 @@ func NewNote(bucketName, noteName, content string) (minio.UploadInfo, error) {
 }
 
 func UpdateNote(bucketName, noteId, newNoteName, newContent string) (UpdatedNoteState, error) {
+	if !isFilenameOk(newNoteName) {
+		return UpdatedNoteState{NothingHappenedState}, fmt.Errorf("Error in yana.UpdateNote(): Filename is not ok")
+	}
+
 	oldNote, err := GetNoteFromNoteId(noteId)
 	if err != nil {
 		return UpdatedNoteState{NothingHappenedState}, fmt.Errorf("Error in yana.UpdateNote() -> Couldn't fetch note because: '%w'\n", err)

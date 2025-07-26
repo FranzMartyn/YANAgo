@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/flosch/pongo2"
 	"github.com/labstack/echo/v4"
@@ -59,16 +58,17 @@ func getIndex(context echo.Context) error {
 	if !isLoggedIn(context) {
 		return context.Redirect(http.StatusMovedPermanently, "/welcome")
 	}
+	// Not handling err because:
+	// 1. The cookie has already been checked in isLoggedIn()
+	// 2. index.html can deal with notes being empty
 	cookie, err := context.Cookie(USER_ID_COOKIE_NAME)
+	if err != nil {
+		fmt.Println("Error in /index:", err)
+	}
 	notes, err := yana.GetAllNotesOfUser(cookie.Value)
 	if err != nil {
-		fmt.Printf("Err while GET /index: %w", err)
-		return context.Redirect(http.StatusMovedPermanently, "/welcome")
+		fmt.Println("Error in /index:", err)
 	}
-
-	// * NOTE: MinIO AND PostgreSQL are saving the filename with the .txt file extension.
-	// But the file extension shouldn't be displayed to the user
-	// notes = yana.RemoveExtensionFromNotes(notes)
 	return context.Render(200, "static/index.html", pongo2.Context{"notes": notes, "noNotes": len(notes) == 0})
 }
 
@@ -114,7 +114,7 @@ func getWelcome(context echo.Context) error {
 
 func getEditNote(context echo.Context) error {
 	if !isLoggedIn(context) {
-		return context.Render(200, "static/welcome.html", pongo2.Context{})
+		return context.Redirect(http.StatusMovedPermanently, "/welcome")
 	}
 	postgresNoteId := context.QueryParam("noteId")
 	if postgresNoteId == "" {
@@ -154,12 +154,8 @@ func postRegister(context echo.Context) error {
 }
 
 func postCreateNote(context echo.Context) error {
-	userId, err := context.Cookie(USER_ID_COOKIE_NAME)
-	if err != nil || userId.Value == "" {
-		context.Response().Header().Set("error", "CouldNotCreateNote")
-		return context.Redirect(http.StatusMovedPermanently, "/")
-	}
-	_, err = yana.NewNote(userId.Value, context.FormValue("title"), context.FormValue("content"))
+	cookie, err := context.Cookie(USER_ID_COOKIE_NAME)
+	_, err = yana.NewNote(cookie.Value, context.FormValue("title"), context.FormValue("content"))
 	if err != nil {
 		context.Redirect(http.StatusMovedPermanently, "/create-note")
 	}
@@ -260,7 +256,18 @@ func main() {
 
 	echoServer := echo.New()
 	echoServer.Renderer = renderer
+
+	// ChatGPT generated with a few edits by me
+	echoServer.HTTPErrorHandler = func(err error, context echo.Context) {
+		httpError, isOk := err.(*echo.HTTPError)
+		if isOk && httpError.Code == http.StatusNotFound {
+			context.Redirect(http.StatusFound, "/")
+			return
+		}
+		// Fallback to default handler for other errors
+		echoServer.DefaultHTTPErrorHandler(err, context)
+	}
+
 	initRoutes(echoServer)
 	echoServer.Logger.Fatal(echoServer.Start(":1323"))
-	echoServer.Logger.Info("Started at: %s\n", time.Now())
 }

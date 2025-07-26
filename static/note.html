@@ -71,12 +71,12 @@
                 <form action="{{formLink}}" method="post" class="note-form">
                     <div class="form-group">
                         <label for="title">Title</label>
-                        <input type="text" id="formTitle" name="title" required value="{{noteTitle}}">
+                        <input type="text" id="formTitle" name="title" required value="{{noteTitle}}" maxlength=1024 onkeypress='return event.charCode != 0 && event.charCode != 47'>
                     </div>
                     
                     <div class="form-group">
                         <label for="content">Content</label>
-                        <textarea name="content" id="formContent" rows="10" required>{{noteContent}}</textarea>
+                        <textarea name="content" id="formContent" rows="10">{{noteContent}}</textarea>
                     </div>
                     
                     <div class="form-actions">
