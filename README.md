@@ -35,6 +35,7 @@ CREATE TABLE note (
 
 > [!IMPORTANT]
 > If your database systems does not have a `uuid` type, replace `uuid` with `varchar(36)` or an equivalent.
+> 
 > If your database system doesn't have `TIMESTAMP` either, replace `TIMESTAMP` with `TEXT` or an equivalent.
 
 Also create a table `user_`:
@@ -49,7 +50,7 @@ CREATE TABLE user_ (
 ```
 
 > [!IMPORTANT]
-> If your database systems doesn't have `citext`, replace `citext` with something like `TEXT COLLATE NOCASE` for SQLite, `VARCHAR(255) COLLATE utf8mb4_unicode_ci` for MySQL and MariaDB, or an equivalent, that allows text to be stored case-insensitively.
+> If your database systems doesn't have `citext`, replace `citext` with something like `TEXT COLLATE NOCASE` for SQLite, `VARCHAR(255) COLLATE utf8mb4_unicode_ci` for MySQL and MariaDB, or an equivalent that allows text to be stored case-insensitively.
 
 PostgreSQL documentation about [citext](https://www.postgresql.org/docs/current/citext.html)
 
