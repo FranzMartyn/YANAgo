@@ -233,6 +233,9 @@ func NewBucket(bucketName string) error {
 }
 
 func NewNote(bucketName, noteName, content string) (minio.UploadInfo, error) {
+	if content == "error" {
+		return minio.UploadInfo{}, fmt.Errorf("content is not allowed to just be \"error\"")
+	}
 	if !isFilenameOk(noteName) {
 		return minio.UploadInfo{}, fmt.Errorf("Error in yana.NewNote(): Filename is not ok")
 	}
