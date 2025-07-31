@@ -179,8 +179,9 @@ func postRegister(context echo.Context) error {
 }
 
 func postCreateNote(context echo.Context) error {
-	cookie, err := context.Cookie(USER_ID_COOKIE_NAME)
-	_, err = yana.NewNote(cookie.Value, context.FormValue("title"), context.FormValue("content"))
+	// The user should absolutely be logged in if POST /create-note is called
+	cookie, _ := context.Cookie(USER_ID_COOKIE_NAME)
+	_, err := yana.NewNote(cookie.Value, context.FormValue("title"), context.FormValue("content"))
 	if err != nil {
 		pongoContext := pongo2.Context{
 			"isNewNote":    true,
@@ -192,6 +193,7 @@ func postCreateNote(context echo.Context) error {
 		}
 		return context.Render(200, "static/note.html", pongoContext)
 	}
+	fmt.Println("err is nil")
 	return context.Redirect(http.StatusMovedPermanently, "/")
 }
 
@@ -220,21 +222,20 @@ func postLogin(context echo.Context) error {
 }
 
 func postEditNote(context echo.Context) error {
-	userId, err := context.Cookie(USER_ID_COOKIE_NAME)
-	if err != nil {
-		return context.Redirect(http.StatusMovedPermanently, "/welcome")
-	}
 	/*
-		I originally planed to save the original title as a hidden input in note.html
-		because it is not possible to change the filename in MinIO so yana.UpdateNote
-		just creates a new note if the title changed. Problem: I realised that it
-		isn't possible to only modify the content of an existing file (except for appending something to
-		the end of a file).
+		I originally planed to save the original title as a hidden input in note.html because
+		it is not possible to change the filename in MinIO.
+		So I wanted yana.UpdateNote() to just overwrite the content if the title didn't changed.
+		Problem: I realised that it isn't possible to modify the content of an existing file too
+		(except for appending something to the end of a file). So yana.UpdateNote() is forced to
+		create a completely new file either way.
 	*/
+	// The user should absolutely be logged in if POST /edit-note is called
+	userId, _ := context.Cookie(USER_ID_COOKIE_NAME)
 	noteId := context.FormValue("noteId")
 	newTitle := context.FormValue("title")
 	newContent := context.FormValue("content")
-	_, err = yana.UpdateNote(userId.Value, noteId, newTitle, newContent)
+	_, err := yana.UpdateNote(userId.Value, noteId, newTitle, newContent)
 	if err != nil {
 		pongoContext := pongo2.Context{
 			"isNewNote":    false,

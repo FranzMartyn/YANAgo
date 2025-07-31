@@ -162,13 +162,15 @@ func isUserInDatabase(email string) (bool, error) {
 	return true, nil
 }
 
-func NewUserNoUsername(email string, password string) (string, error) {
-	address, errIsEmailValid := mail.ParseAddress(email)
-	if errIsEmailValid != nil {
-		return "", errIsEmailValid
-	}
-	return InsertNewUserInPostgres(email, address.Name, password)
-}
+// This has been here since before I even had a frontend and never needed it
+// because the email field in /register is required
+// func NewUserNoUsername(email string, password string) (string, error) {
+// 	address, errIsEmailValid := mail.ParseAddress(email)
+// 	if errIsEmailValid != nil {
+// 		return "", errIsEmailValid
+// 	}
+// 	return InsertNewUserInPostgres(email, address.Name, password)
+// }
 
 // Returns string: uuid of newly created user
 func InsertNewUserInPostgres(email string, fullname string, password string) (string, error) {
@@ -297,13 +299,13 @@ func getPostgresNoteFromNoteId(postgresNoteId string) (PostgresNote, error) {
 func updateNoteNameInPostgres(noteId, newNoteName string) error {
 	db, err := connectToPostgres()
 	if err != nil {
-		fmt.Errorf("Error in yana.updateNoteNameInPostgres -> Couldn't connect to Postgres because '%w'\n", err)
+		fmt.Errorf("Error in yana.updateNoteNameInPostgres -> Couldn't connect to Postgres because '%w'", err)
 	}
 	defer db.Close()
 	query := `UPDATE note SET filename=$1 WHERE id=$2`
 	_, err = db.Exec(query, newNoteName, noteId)
 	if err != nil {
-		fmt.Errorf("Error in yana.updateNoteNameInPostgres -> Couldn't execute update query because '%w'\n", err)
+		fmt.Errorf("Error in yana.updateNoteNameInPostgres -> Couldn't execute update query because '%w'", err)
 	}
 	return nil
 }
@@ -311,13 +313,31 @@ func updateNoteNameInPostgres(noteId, newNoteName string) error {
 func deleteNoteInPostgres(noteId string) error {
 	db, err := connectToPostgres()
 	if err != nil {
-		fmt.Errorf("Error in yana.deleteNoteInPostgres() -> Couldn't connect to Postgres because '%w'\n", err)
+		fmt.Errorf("Error in yana.deleteNoteInPostgres() -> Couldn't connect to Postgres because '%w'", err)
 	}
 	defer db.Close()
-	query := `DELETE FROM note WHERE  id=$1`
+	query := `DELETE FROM note WHERE id=$1`
 	_, err = db.Exec(query, noteId)
 	if err != nil {
-		fmt.Errorf("Error in yana.deleteNoteInPostgres() -> Couldn't execute delete query because '%w'\n", err)
+		fmt.Errorf("Error in yana.deleteNoteInPostgres() -> Couldn't execute delete query because '%w'", err)
 	}
 	return nil
+}
+
+// For editing an already existing note
+func doesOtherNoteWithSameNameExist(noteId, bucketName, filename string) (bool, error) {
+	db, err := connectToPostgres()
+	if err != nil {
+		fmt.Errorf("Error in yana.doesOtherNoteWithSameNameExist() -> Couldn't connect to Postgres because '%w'", err)
+	}
+	defer db.Close()
+	var unusedId int
+	query := `SELECT * FROM note WHERE id!=$1 AND bucketname=$2 AND filename=$3`
+	err = db.QueryRow(query, noteId, bucketName, filename).Scan(&unusedId)
+	if err == sql.ErrNoRows {
+		return false, nil
+	} else if err != nil {
+		return false, fmt.Errorf("Error in yana.doesOtherNoteWithSameNameExist() -> Couldn't execute querye to check if a different note with the same name already exists because '%w'", err)
+	}
+	return true, nil
 }

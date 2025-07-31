@@ -116,13 +116,18 @@ func checkMinIOClient() error {
 func doesNoteWithSameNameExist(bucketName, noteName string) (bool, YanaError) {
 	err := checkMinIOClient()
 	if err != nil {
-		return false, YanaError{Code: BadClient, Err: fmt.Errorf("Error in doesNoteWithSameNameExist: Error checking minio client: %w ", err)}
+		return false, YanaError{Code: BadClient, Err: fmt.Errorf("Error in yana.doesNoteWithSameNameExist(): Error checking minio client: %w ", err)}
 	}
-	_, err = minioClient.GetObject(yanaContext, bucketName, noteName, minio.GetObjectOptions{})
+	object, err := minioClient.GetObject(yanaContext, bucketName, noteName, minio.GetObjectOptions{})
 	if err != nil {
-		return true, YanaError{Code: NoError, Err: err}
+		return false, YanaError{Code: NoError, Err: nil}
 	}
-	return false, YanaError{Code: NoError, Err: nil}
+	defer object.Close()
+	stats, err := object.Stat()
+	if err != nil {
+		return false, YanaError{Code: NoError, Err: nil}
+	}
+	return true, YanaError{Code: NoError, Err: nil}
 }
 
 func GetAllNotesOfUser(bucketName string) ([]Note, error) {
@@ -132,9 +137,7 @@ func GetAllNotesOfUser(bucketName string) ([]Note, error) {
 	}
 	objectChannel := minioClient.ListObjects(yanaContext, bucketName, minio.ListObjectsOptions{Recursive: true})
 	var notes []Note
-	i := -1 // -1 so the index is 0 at the start of the for (-each) loop
 	for objectInfo := range objectChannel {
-		i++
 		if objectInfo.Err != nil {
 			continue
 		}
@@ -244,9 +247,14 @@ func NewNote(bucketName, noteName, content string) (minio.UploadInfo, error) {
 	if err != nil {
 		return minio.UploadInfo{}, nil
 	}
+
+	fmt.Println("noteName=", noteName)
 	isExisting, yanaErr := doesNoteWithSameNameExist(bucketName, noteName)
 	if isExisting {
-		return minio.UploadInfo{}, fmt.Errorf("yana.NewNote() -> (Note already exists) Checked if note with same name exists: '%w'", yanaErr.Err)
+		return minio.UploadInfo{}, fmt.Errorf("yana.NewNote() -> (Note already exists) A note with the same name already exists")
+	}
+	if yanaErr.Err != nil {
+		return minio.UploadInfo{}, fmt.Errorf("yana.NewNote() -> Couldn't check if note with same name exists: '%w'", yanaErr.Err)
 	}
 
 	// The data is inserted to postgres first before actually saving the note to MinIO
@@ -273,6 +281,14 @@ func NewNote(bucketName, noteName, content string) (minio.UploadInfo, error) {
 func UpdateNote(bucketName, noteId, newNoteName, newContent string) (UpdatedNoteState, error) {
 	if !isFilenameOk(newNoteName) {
 		return UpdatedNoteState{NothingHappenedState}, fmt.Errorf("Error in yana.UpdateNote(): Filename is not ok")
+	}
+
+	noteWithSameNameExist, err := doesOtherNoteWithSameNameExist(noteId, bucketName, newNoteName)
+	if err != nil {
+		return UpdatedNoteState{NothingHappenedState}, fmt.Errorf("Error in yana.UpdateNote(): Couldn't check if a note with the same name exists because '%w'", err)
+	}
+	if noteWithSameNameExist {
+		return UpdatedNoteState{NothingHappenedState}, fmt.Errorf("Error in yana.UpdateNote(): A different note with the same name already exists")
 	}
 
 	oldNote, err := GetNoteFromNoteId(noteId)
@@ -313,7 +329,7 @@ func UpdateNote(bucketName, noteId, newNoteName, newContent string) (UpdatedNote
 		if err != nil {
 			// This is a horrible state: The file has been deleted in minio but a new file couldn't be created at all
 			errString := "Error in yana.UpdateNote() -> Couldn't create note with either new or old information " +
-				"because: '%w' with the new information and '%w' with the old information"
+				"because: '%w' with the new information and '%w' with the old information. Sorry :("
 			return UpdatedNoteState{NoteDeletedState}, fmt.Errorf(errString, newNoteErr, oldNoteErr)
 		}
 		return UpdatedNoteState{OldNoteState}, nil
@@ -332,7 +348,7 @@ func DeleteNoteFromNoteId(noteId string) error {
 	// 1. Try to delete note info in postgres
 	// 2. Try to delete the note object in minio
 	// 	  2.1 If 2. wasn't succesful, try to re-insert the data into postgres
-	// 	  2.2 If 3. wasn't succesfu, say sorry
+	// 	  2.2 If 2.1 wasn't succesful, say sorry
 	postgresNote, err := getPostgresNoteFromNoteId(noteId)
 	if err != nil {
 		return fmt.Errorf("yana.DeleteNoteFromNoteId() -> Couldn't get Info from Postgres: '%w'\n", err)
