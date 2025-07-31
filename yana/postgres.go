@@ -331,8 +331,8 @@ func doesOtherNoteWithSameNameExist(noteId, bucketName, filename string) (bool, 
 		fmt.Errorf("Error in yana.doesOtherNoteWithSameNameExist() -> Couldn't connect to Postgres because '%w'", err)
 	}
 	defer db.Close()
-	var unusedId int
-	query := `SELECT * FROM note WHERE id!=$1 AND bucketname=$2 AND filename=$3`
+	var unusedId string
+	query := `SELECT id FROM note WHERE id!=$1 AND bucketname=$2 AND filename=$3`
 	err = db.QueryRow(query, noteId, bucketName, filename).Scan(&unusedId)
 	if err == sql.ErrNoRows {
 		return false, nil

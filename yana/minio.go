@@ -123,7 +123,7 @@ func doesNoteWithSameNameExist(bucketName, noteName string) (bool, YanaError) {
 		return false, YanaError{Code: NoError, Err: nil}
 	}
 	defer object.Close()
-	stats, err := object.Stat()
+	_, err = object.Stat()
 	if err != nil {
 		return false, YanaError{Code: NoError, Err: nil}
 	}
