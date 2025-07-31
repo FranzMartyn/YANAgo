@@ -10,13 +10,15 @@
 ## Quality of Life features
 
 - [x] Add /create-note and /edit-note user error messages
+- [ ] Add user error messages to /index
 - [ ] Add user error messages to /login and /register
 - [ ] User Settings
 - [ ] Pinned Notes
 
 ### Developer Quality of Life features
 
-- [ ] Replace any use of normal errors with YanaError or just assign errors to variables
+- [ ] Remove any use of normal errors and use errors assigned to variables instead
+- [ ] Remove 
 - [ ] Add error messages to /login /register
 
 ## Things I might add
