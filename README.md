@@ -1,6 +1,6 @@
 # YANAgo
 
-YANAgo is, as the name implies, **Y**et **A**nother **N**otes **A**pp - written in **go** and [labstack/echo](https://github.com/labstack/echo).
+**YANAgo** is, as the name implies, **Y**et **A**nother **N**otes **A**pp: A web app written in **go** and [labstack/echo](https://github.com/labstack/echo).
 
 ## Requirements
 
@@ -16,9 +16,9 @@ First run:
 git clone https://github.com/FranzMartyn/YANAgo
 ```
 
-Then edit `config/postgresql.yml` and `config/minio.yml` with your data
+Then edit `config/postgresql.yml` and `config/minio.yml` with your data.
 
-Run `make install` to install the dependencies, then `make run` to test if everything works
+Run `make install` to install the dependencies, then `make run` to start the server.
 
 ### PostgreSQL
 
@@ -34,9 +34,9 @@ CREATE TABLE note (
 ```
 
 > [!IMPORTANT]
-> If your database system does not have a `UUID` type, replace `UUID` with `VARCHAR(36)` or an equivalent.
-> 
-> If your database system doesn't have `TIMESTAMP` too, replace `TIMESTAMP` with `TEXT` or an equivalent.
+> If your database system doesn't have a `UUID` type, replace `UUID` with `VARCHAR(36)` or an equivalent.
+>
+> If your database system doesn't have `TIMESTAMP`, replace `TIMESTAMP` with `TEXT` or an equivalent.
 
 And a table `user_`:
 
@@ -49,9 +49,6 @@ CREATE TABLE user_ (
 );
 ```
 
-> [!IMPORTANT]
-> If your database systems doesn't have `CITEXT`, replace `CITEXT` with something like `TEXT COLLATE NOCASE` for SQLite, `VARCHAR(255) COLLATE utf8mb4_unicode_ci` for MySQL and MariaDB, or an equivalent that allows text to be stored case-insensitively.
-
 PostgreSQL documentation about [citext](https://www.postgresql.org/docs/current/citext.html)
 
 To enable citext in PostgreSQL, run:
@@ -60,3 +57,10 @@ To enable citext in PostgreSQL, run:
 \c your_database_name;
 CREATE EXTENSION IF NOT EXISTS citext;
 ```
+
+> [!IMPORTANT]
+> If your database system doesn't have `CITEXT`, replace `CITEXT` with something that allows text to be stored case-insensitively. For example:
+>
+> - `TEXT COLLATE NOCASE` on SQLite
+> - `VARCHAR(255) COLLATE utf8mb4_unicode_ci` on MySQL and MariaDB
+> - ...
