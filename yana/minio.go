@@ -69,9 +69,9 @@ func (updatedNoteState UpdatedNoteState) ToString() string {
 // checking here too because you can't trust the user
 func isFilenameOk(filename string) bool {
 	containsNULCharacter := strings.ContainsRune(filename, '\x00')
-	containsSlash := strings.ContainsRune(filename, '/')    // Can't even escape a slash in a file
-	isDotOrDotDot := filename == "." || filename == ".."    // I don't know a better name for this variable
-	isLongerThanAllowed := len(filename) > FILENAME_MAX_LEN // Only limited by the S3 Api
+	containsSlash := strings.ContainsRune(filename, '/')    // Can't escape / in a file.
+	isDotOrDotDot := filename == "." || filename == ".."    // I don't know a better name for this variable.
+	isLongerThanAllowed := len(filename) > FILENAME_MAX_LEN // Only limited by the S3 Api.
 	return !containsNULCharacter && !containsSlash && !isLongerThanAllowed && !isDotOrDotDot
 }
 
@@ -92,8 +92,12 @@ func readMinIOConfig(path string) (MinIOConfig, error) {
 var EMPTY_CLIENT = &minio.Client{}
 var minioClient = EMPTY_CLIENT
 
-// TODO: Maybe replace error with YanaError???
+/*
+ * This function should be called at the start
+ * of every function that is using minioClient
+ */
 func checkMinIOClient() error {
+	// TODO: Maybe replace error with YanaError???
 	if minioClient != EMPTY_CLIENT {
 		return nil
 	}

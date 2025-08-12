@@ -67,8 +67,8 @@
                                         });
                                     });
                                 </script>
-                                <a class="edit-link" href="edit-note?noteId={{note.PostgresId}}">Edit</a>
-                                <a class="delete-link" onclick="confirmDelete('{{note.PostgresId}}')">Delete</a>
+                                <a class="edit-link" href="edit-note?noteId={{note.PostgreSQLId}}">Edit</a>
+                                <a class="delete-link" href="#" onclick="confirmDelete('{{note.PostgreSQLId}}')">Delete</a>
                             </div>
                         </div>
                         {% endfor %}

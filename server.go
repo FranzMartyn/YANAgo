@@ -58,9 +58,6 @@ func getIndex(context echo.Context) error {
 	if !isLoggedIn(context) {
 		return context.Redirect(http.StatusMovedPermanently, "/welcome")
 	}
-	// Not handling err because:
-	// 1. The cookie has already been checked in isLoggedIn()
-	// 2. index.html can deal with notes being empty
 	cookie, err := context.Cookie(USER_ID_COOKIE_NAME)
 	if err != nil {
 		fmt.Println("Error in /index:", err)
@@ -123,11 +120,11 @@ func getEditNote(context echo.Context) error {
 	if !isLoggedIn(context) {
 		return context.Redirect(http.StatusMovedPermanently, "/welcome")
 	}
-	noteId := context.QueryParam("noteId")
-	if noteId == "" {
+	postgresqlNoteId := context.QueryParam("noteId")
+	if postgresqlNoteId == "" {
 		return context.Redirect(http.StatusMovedPermanently, "/index")
 	}
-	note, err := yana.GetNoteFromNoteId(noteId)
+	note, err := yana.GetNoteFromNoteId(postgresqlNoteId)
 	if err != nil {
 		//context.Response().Header().Set("Error", "CouldNotFindNoteFromId")
 		//return context.Redirect(http.StatusMovedPermanently, "/index")
@@ -231,6 +228,7 @@ func postEditNote(context echo.Context) error {
 		create a completely new file either way.
 	*/
 	// The user should absolutely be logged in if POST /edit-note is called
+	// so not checking for an error at context.Cookie
 	userId, _ := context.Cookie(USER_ID_COOKIE_NAME)
 	noteId := context.FormValue("noteId")
 	newTitle := context.FormValue("title")
@@ -253,8 +251,10 @@ func postEditNote(context echo.Context) error {
 
 // ------------ DELETE ------------
 
-// called from index.html
+// FIXME: The note stays visible in /index after deletion.
+// A refresh fixes this.
 func deleteDeleteNote(context echo.Context) error {
+	// This is called from index.html
 	jsonMap := make(map[string]interface{})
 	err := json.NewDecoder(context.Request().Body).Decode(&jsonMap)
 	if err != nil {
@@ -268,7 +268,7 @@ func deleteDeleteNote(context echo.Context) error {
 		fmt.Printf("Could get noteId but failed deleting note: %w", err)
 	}
 	fmt.Println("Should load back to index")
-	return context.Redirect(http.StatusMovedPermanently, "/index")
+	return context.Redirect(http.StatusMovedPermanently, "/")
 }
 
 func initRoutes(e *echo.Echo) {

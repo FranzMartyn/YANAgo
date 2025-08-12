@@ -6,7 +6,7 @@ type YanaError struct {
 }
 
 // This is an enum for the error codes of YanaError
-// TODO: Add more in the future?
+// TODO: Add more in the future or just assign errors to values and use those instead of YanaError???
 const (
 	NoError = iota
 	ConnectionFailed

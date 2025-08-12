@@ -10,5 +10,5 @@ r: run
 
 # For myself too
 n:
-	nvim server.go yana/minio.go yana/postgres.go yana/yanaErrors.go
+	nvim server.go yana/minio.go yana/postgresql.go yana/yanaErrors.go
 
