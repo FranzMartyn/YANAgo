@@ -123,11 +123,11 @@ func getEditNote(context echo.Context) error {
 	if !isLoggedIn(context) {
 		return context.Redirect(http.StatusMovedPermanently, "/welcome")
 	}
-	postgresNoteId := context.QueryParam("noteId")
-	if postgresNoteId == "" {
+	noteId := context.QueryParam("noteId")
+	if noteId == "" {
 		return context.Redirect(http.StatusMovedPermanently, "/index")
 	}
-	note, err := yana.GetNoteFromNoteId(postgresNoteId)
+	note, err := yana.GetNoteFromNoteId(noteId)
 	if err != nil {
 		//context.Response().Header().Set("Error", "CouldNotFindNoteFromId")
 		//return context.Redirect(http.StatusMovedPermanently, "/index")
@@ -142,7 +142,7 @@ func getEditNote(context echo.Context) error {
 		"formLink":    "/edit-note",
 		"noteTitle":   note.Name,
 		"noteContent": note.Content,
-		"noteId":      note.PostgresId,
+		"noteId":      note.PostgreSQLId,
 	}
 	if err != nil {
 		pongoContext["errorMessage"] = err.Error()
@@ -156,7 +156,7 @@ func getEditNote(context echo.Context) error {
 // ------------ POST ------------
 
 func postRegister(context echo.Context) error {
-	userId, err := yana.InsertNewUserInPostgres(context.FormValue("email"), context.FormValue("name"), context.FormValue("password"))
+	userId, err := yana.CreateNewUser(context.FormValue("email"), context.FormValue("name"), context.FormValue("password"))
 	if err != nil {
 		// TODO: Maybe implement custom errors to return here to string to tell the user what the problem was?
 		context.Response().Header().Set("error", "DBConnectionFailure")

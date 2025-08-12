@@ -19,7 +19,7 @@ const (
 )
 
 type Note struct {
-	PostgresId       string // TODO: Maybe make this a UUID instead of a string in the future?
+	PostgreSQLId     string // TODO: Maybe make this a UUID instead of a string in the future?
 	Name             string
 	BucketName       string // TODO: Maybe make this a UUID instead of a string in the future?
 	Content          string
@@ -47,7 +47,7 @@ type MinIOConfig struct {
 
 var yanaContext context.Context = context.Background()
 
-const MINIO_CONFIG_PATH = "db/minio.yml"
+const MINIO_CONFIG_PATH = "config/minio.yml"
 
 // Just for myself/the developer to have an easy to time to print the error
 func (updatedNoteState UpdatedNoteState) ToString() string {
@@ -66,7 +66,7 @@ func (updatedNoteState UpdatedNoteState) ToString() string {
 
 // Turns out that unix-like systems support a plethora of characters.
 // index.html already makes the input <= 1024 and filters out NUL and /, but
-// checking here too just in case
+// checking here too because you can't trust the user
 func isFilenameOk(filename string) bool {
 	containsNULCharacter := strings.ContainsRune(filename, '\x00')
 	containsSlash := strings.ContainsRune(filename, '/')    // Can't even escape a slash in a file
@@ -172,55 +172,51 @@ func GetNoteFromBucketAndNotename(bucketName, noteName string) (Note, error) {
 	}
 	defer object.Close()
 
-	// I can't remember why this exists
-	// _, err = object.Stat()
-	// if err != nil {
-	// 	return Note{}, fmt.Errorf("Couldn't get note metadata in yana.GetNoteFromBucketAndNotename(): %w", err)
-	// }
 	content, err := io.ReadAll(object)
 	if err != nil {
 		return Note{}, fmt.Errorf("Couldn't get note content in yana.GetNoteFromBucketAndNotename(): %w", err)
 	}
-	postgresNoteInfo, err := getPostgresNoteFromBucketAndNotename(bucketName, noteName)
+	postgresqlNoteInfo, err := getPostgreSQLNoteFromBucketAndNotename(bucketName, noteName)
 	if err != nil {
-		return Note{}, fmt.Errorf("Couldn't get note metadata (from postgres) in yana.GetNoteFromBucketAndNotename(): %w", err)
+		return Note{}, fmt.Errorf("Couldn't get note metadata (from postgresql) in yana.GetNoteFromBucketAndNotename(): %w", err)
 	}
 	return Note{
-		PostgresId:       postgresNoteInfo.Id,
+		PostgreSQLId:     postgresqlNoteInfo.Id,
 		Name:             noteName,
 		BucketName:       bucketName,
 		Content:          string(content),
-		CreatedAtUTC:     postgresNoteInfo.CreatedAtUTC,
+		CreatedAtUTC:     postgresqlNoteInfo.CreatedAtUTC,
 		ContentShortened: shortenNoteContent(string(content))}, nil
 }
 
-func GetNoteFromNoteId(postgresNoteId string) (Note, error) {
+func GetNoteFromNoteId(postgresqlNoteId string) (Note, error) {
 	err := checkMinIOClient()
 	if err != nil {
 		return Note{}, fmt.Errorf("yana.GetNoteFromNoteId() -> (Fail generating minioclient) Couldn't create minio because: '%w'\n", err)
 	}
-	postgresNoteInfo, err := getPostgresNoteFromNoteId(postgresNoteId)
+	postgresqlNoteInfo, err := getPostgreSQLNoteFromNoteId(postgresqlNoteId)
 	if err != nil {
-		return Note{}, fmt.Errorf("yana.GetNoteFromNoteId() -> (Fail getting postgresNoteInfo) Couldn't get postgresNoteInfo: '%w'\n", err)
+		return Note{}, fmt.Errorf("yana.GetNoteFromNoteId() -> (Fail getting postgresqlNoteInfo) Couldn't get postgreSQLNoteInfo: '%w'\n", err)
 	}
 
-	// I am not using GetNoteFromBucketAndNotename() because then I would have a second unnecessary call to postgres
-	object, err := minioClient.GetObject(yanaContext, postgresNoteInfo.Bucketname, postgresNoteInfo.Filename, minio.GetObjectOptions{})
+	// I am not using GetNoteFromBucketAndNotename() and do a normal GetObject call here because otherwise I would have a second unnecessary call to postgresql
+	object, err := minioClient.GetObject(yanaContext, postgresqlNoteInfo.Bucketname, postgresqlNoteInfo.Filename, minio.GetObjectOptions{})
 	if err != nil {
 		return Note{}, fmt.Errorf("Couldn't get note in yana.GetNoteFromNoteId(): %w", err)
 	}
 	defer object.Close()
-	content, err := io.ReadAll(object)
+	raw_content, err := io.ReadAll(object)
 	if err != nil {
 		return Note{}, fmt.Errorf("Couldn't get note content in yana.GetNoteFromNoteId(): %w", err)
 	}
+	content := string(raw_content)
 	return Note{
-		PostgresId:       postgresNoteInfo.Id,
-		Name:             postgresNoteInfo.Filename,
-		BucketName:       postgresNoteInfo.Bucketname,
-		Content:          string(content),
-		CreatedAtUTC:     postgresNoteInfo.CreatedAtUTC,
-		ContentShortened: shortenNoteContent(string(content))}, nil
+		PostgreSQLId:     postgresqlNoteInfo.Id,
+		Name:             postgresqlNoteInfo.Filename,
+		BucketName:       postgresqlNoteInfo.Bucketname,
+		Content:          content,
+		CreatedAtUTC:     postgresqlNoteInfo.CreatedAtUTC,
+		ContentShortened: shortenNoteContent(content)}, nil
 }
 
 func NewBucket(bucketName string) error {
@@ -257,13 +253,13 @@ func NewNote(bucketName, noteName, content string) (minio.UploadInfo, error) {
 		return minio.UploadInfo{}, fmt.Errorf("yana.NewNote() -> Couldn't check if note with same name exists: '%w'", yanaErr.Err)
 	}
 
-	// The data is inserted to postgres first before actually saving the note to MinIO
-	// because it feels a lot safer to remove a row in postgres than to remove an object in MinIO.
+	// The data is inserted to postgresql first before actually saving the note to MinIO
+	// because it feels a lot safer to remove a row in postgresql than to remove an object in MinIO.
 	// I also think that it might be faster to delete a row than an object
 	// but that's just speculation
-	err = insertNewNoteInPostgres(bucketName, noteName)
+	err = insertNewNoteInPostgreSQL(bucketName, noteName)
 	if err != nil {
-		return minio.UploadInfo{}, fmt.Errorf("yana.NewNote() -> (Fail inserting info to postgres) Couldn't add info to postgres because: %w", err)
+		return minio.UploadInfo{}, fmt.Errorf("yana.NewNote() -> (Fail inserting info to postgres) Couldn't add info to postgresql because: %w", err)
 	}
 	err = checkMinIOClient()
 	if err != nil {
@@ -306,7 +302,7 @@ func UpdateNote(bucketName, noteId, newNoteName, newContent string) (UpdatedNote
 	}
 
 	if isNameChanged {
-		updateNoteNameInPostgres(noteId, newNoteName)
+		updateNoteNameInPostgreSQL(noteId, newNoteName)
 	}
 	err = checkMinIOClient()
 	if err != nil {
@@ -349,7 +345,7 @@ func DeleteNoteFromNoteId(noteId string) error {
 	// 2. Try to delete the note object in minio
 	// 	  2.1 If 2. wasn't succesful, try to re-insert the data into postgres
 	// 	  2.2 If 2.1 wasn't succesful, say sorry
-	postgresNote, err := getPostgresNoteFromNoteId(noteId)
+	postgresqlNote, err := getPostgreSQLNoteFromNoteId(noteId)
 	if err != nil {
 		return fmt.Errorf("yana.DeleteNoteFromNoteId() -> Couldn't get Info from Postgres: '%w'\n", err)
 	}
@@ -359,9 +355,9 @@ func DeleteNoteFromNoteId(noteId string) error {
 		return fmt.Errorf("yana.DeleteNoteFromNoteId() -> Couldn't delete note in Postgres: '%w'\n", err)
 	}
 
-	err = minioClient.RemoveObject(yanaContext, postgresNote.Bucketname, postgresNote.Filename, minio.RemoveObjectOptions{})
+	err = minioClient.RemoveObject(yanaContext, postgresqlNote.Bucketname, postgresqlNote.Filename, minio.RemoveObjectOptions{})
 	if err != nil {
-		err = insertNoteInPostgres(noteId, postgresNote.Bucketname, postgresNote.Filename, postgresNote.CreatedAtUTC)
+		err = insertNoteInPostgreSQL(noteId, postgresqlNote.Bucketname, postgresqlNote.Filename, postgresqlNote.CreatedAtUTC)
 		if err != nil {
 			// This state is BAD
 			return fmt.Errorf("yana.DeleteNoteFromNoteId() -> Couldn't remove note in MinIO, but couldn't re-insert data in PostgreSQL. I'm sorry :(  :'%w'\n", err)

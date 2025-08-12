@@ -20,9 +20,9 @@ const (
 	EMAIL_MAX_LEN        = 320
 )
 
-const POSTGRES_CONFIG_PATH = "db/postgres.yml"
+const POSTGRESQL_CONFIG_PATH = "config/postgresql.yml"
 
-type PostgresConfig struct {
+type PostgreSQLConfig struct {
 	Host         string `yaml:"host"`
 	Port         int    `yaml:"port"`
 	User         string `yaml:"user"`
@@ -36,23 +36,23 @@ type User struct {
 	FullName string
 }
 
-type PostgresNote struct {
+type PostgreSQLNote struct {
 	Id           string
 	Bucketname   string
 	Filename     string
 	CreatedAtUTC string
 }
 
-func readPostgresConfig(path string) (PostgresConfig, error) {
+func readPostgreSQLConfig(path string) (PostgreSQLConfig, error) {
 	file, err := os.ReadFile(path)
 	if err != nil {
-		return PostgresConfig{}, err
+		return PostgreSQLConfig{}, err
 	}
 
-	config := PostgresConfig{}
+	config := PostgreSQLConfig{}
 	err = yaml.Unmarshal(file, &config)
 	if err != nil {
-		return PostgresConfig{}, fmt.Errorf("in file %q: %w", path, err)
+		return PostgreSQLConfig{}, fmt.Errorf("in file %q: %w", path, err)
 	}
 	return config, err
 }
@@ -63,11 +63,10 @@ func arePasswordsSame(firstPassword string, secondPassword string) bool {
 }
 
 func IsLoginOk(email string, password string) (bool, YanaError) {
-	db, err := connectToPostgres()
+	db, err := connectToPostgreSQL()
 	if err != nil {
 		return false, YanaError{Code: ConnectionFailed, Err: fmt.Errorf("yana.CheckPassword() -> Couldn't connect to Postgres: %w", err)}
 	}
-	// TODO: Hash and salt.. this and that...
 	var actualPassword string
 	query := `SELECT encryptedpassword FROM user_ WHERE email = $1`
 	row := db.QueryRow(query, email)
@@ -84,10 +83,10 @@ func IsLoginOk(email string, password string) (bool, YanaError) {
 }
 
 func GetUserIDFromEmail(email string) (string, error) {
-	db, err := connectToPostgres()
+	db, err := connectToPostgreSQL()
 	defer db.Close()
 	if err != nil {
-		return "", fmt.Errorf("yana.GetUserIDFromEmail() -> Couldn't connect to Postgres: %w", err)
+		return "", fmt.Errorf("yana.GetUserIDFromEmail() -> Couldn't connect to PostgreSQL: %w", err)
 	}
 	var userid string
 	query := `SELECT id FROM user_ WHERE email = $1`
@@ -96,7 +95,7 @@ func GetUserIDFromEmail(email string) (string, error) {
 	if err == sql.ErrNoRows || userid == "" {
 		return "", nil
 	} else if err != nil {
-		return "", fmt.Errorf("yana.GetUserIDFromEmail() -> Couldn't execue qurey: %w", err)
+		return "", fmt.Errorf("yana.GetUserIDFromEmail() -> Couldn't execue query: %w", err)
 	}
 	return userid, nil
 }
@@ -124,28 +123,28 @@ func hashAndSalt(password []byte) (string, error) {
 	return "", nil
 }
 
-func connectToPostgres() (*sql.DB, error) {
-	config, err := readPostgresConfig(POSTGRES_CONFIG_PATH)
+func connectToPostgreSQL() (*sql.DB, error) {
+	config, err := readPostgreSQLConfig(POSTGRESQL_CONFIG_PATH)
 	if err != nil {
-		return &sql.DB{}, fmt.Errorf("yana.connectToPostgres() -> Couldn't load postgres config: %w", err)
+		return &sql.DB{}, fmt.Errorf("yana.connectToPostgreSQL() -> Couldn't load postgresql config: %w", err)
 	}
 	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s password='%s' dbname=%s sslmode=disable",
 		config.Host, config.Port, config.User, config.Password, config.DatabaseName)
 	db, err := sql.Open("postgres", psqlInfo)
 	if err != nil {
 		defer db.Close()
-		return &sql.DB{}, fmt.Errorf("yana.connectToPostgres() -> Couldn't connect to postgres: %w", err)
+		return &sql.DB{}, fmt.Errorf("yana.connectToPostgreSQL() -> Couldn't connect to postgres: %w", err)
 	}
 	err = db.Ping()
 	if err != nil {
 		defer db.Close()
-		return &sql.DB{}, fmt.Errorf("yana.connectToPostgres() -> Couldn't verify connection to postgres: %w", err)
+		return &sql.DB{}, fmt.Errorf("yana.connectToPostgreSQL() -> Couldn't verify connection to postgres: %w", err)
 	}
 	return db, nil
 }
 
 func isUserInDatabase(email string) (bool, error) {
-	db, err := connectToPostgres()
+	db, err := connectToPostgreSQL()
 	defer db.Close()
 	if err != nil {
 		return false, fmt.Errorf("yana.checkIfUserExists() -> Couldn't connect to Postgres: %w", err)
@@ -169,16 +168,16 @@ func isUserInDatabase(email string) (bool, error) {
 // 	if errIsEmailValid != nil {
 // 		return "", errIsEmailValid
 // 	}
-// 	return InsertNewUserInPostgres(email, address.Name, password)
+// 	return CreateNewUser(email, address.Name, password)
 // }
 
 // Returns string: uuid of newly created user
-func InsertNewUserInPostgres(email string, fullname string, password string) (string, error) {
+func CreateNewUser(email string, fullname string, password string) (string, error) {
 	_, errIsEmailValid := mail.ParseAddress(email)
 	if errIsEmailValid != nil {
 		return "", errIsEmailValid
 	}
-	db, err := connectToPostgres()
+	db, err := connectToPostgreSQL()
 	defer db.Close()
 	if err != nil {
 		return "", err
@@ -200,14 +199,14 @@ func InsertNewUserInPostgres(email string, fullname string, password string) (st
 	query := `INSERT INTO user_ (id, fullname, encryptedpassword, email) VALUES ($1, $2, $3, $4)`
 	_, err = db.Exec(query, userid, fullname, encryptedPassword, email)
 	if err != nil {
-		return "", fmt.Errorf("yana.InsertNewUserInPostgres() -> Insert query wasn't succesful: %w", err)
+		return "", fmt.Errorf("yana.CreateNewUser() -> Insert query wasn't succesful: %w", err)
 	}
 	return userid, nil
 }
 
 // err == nil means deletion was  succesful
 func deleteRowOfNote(bucketName, fileName string) error {
-	db, err := connectToPostgres()
+	db, err := connectToPostgreSQL()
 	defer db.Close()
 	if err != nil {
 		return err
@@ -220,69 +219,69 @@ func deleteRowOfNote(bucketName, fileName string) error {
 	return nil
 }
 
-func insertNewNoteInPostgres(bucketName, filename string) error {
-	db, err := connectToPostgres()
+func insertNewNoteInPostgreSQL(bucketName, filename string) error {
+	db, err := connectToPostgreSQL()
 	defer db.Close()
 	if err != nil {
-		return fmt.Errorf("Error in yana.insertNewNoteInPostgres() -> couldn't create to postgres because: %x", err)
+		return fmt.Errorf("Error in yana.insertNewNoteInPostgreSQL() -> couldn't create to postgresql because: %x", err)
 	}
 
 	isNoteInDB, yanaErr := doesNoteWithSameNameExist(bucketName, filename)
 	if yanaErr.Err != nil {
-		return fmt.Errorf("Error in yana.insertNewNoteInPostgres() -> Note in user bucket with same name exists: %w", yanaErr.Err)
+		return fmt.Errorf("Error in yana.insertNewNoteInPostgreSQL() -> Note in user bucket with same name exists: %w", yanaErr.Err)
 	}
 	if isNoteInDB {
-		return fmt.Errorf("Error in yana.insertNewNoteInPostgres() -> Note with same name is already in user's bucket")
+		return fmt.Errorf("Error in yana.insertNewNoteInPostgreSQL() -> Note with same name is already in user's bucket")
 	}
 
 	query := `INSERT INTO note (id, bucketname, filename, created_at_utc) VALUES (gen_random_uuid(), $1, $2, timezone('utc', NOW()::timestamp))`
 	_, err = db.Exec(query, bucketName, filename)
 	if err != nil {
-		return fmt.Errorf("Error in yana.insertNewNoteInPostgres() -> Insert query wasn't succesful: %w", err)
+		return fmt.Errorf("Error in yana.insertNewNoteInPostgreSQL() -> Insert query wasn't succesful: %w", err)
 	}
 
 	return nil
 }
 
-func insertNoteInPostgres(noteId, bucketName, filename, creationDateUTC string) error {
-	db, err := connectToPostgres()
+func insertNoteInPostgreSQL(noteId, bucketName, filename, creationDateUTC string) error {
+	db, err := connectToPostgreSQL()
 	defer db.Close()
 	if err != nil {
-		return fmt.Errorf("Error in yana.insertNoteInPostgres() -> couldn't create to postgres because: %x", err)
+		return fmt.Errorf("Error in yana.insertNoteInPostgreSQL() -> couldn't create to postgresql because: %x", err)
 	}
 	query := `INSERT INTO note (id, bucketname, filename, created_at_utc) VALUES ($1, $2, $3, %4)`
 	_, err = db.Exec(query, bucketName, filename)
 	if err != nil {
-		return fmt.Errorf("Error in yana.insertNoteInPostgres() -> Insert query wasn't succesful: %w", err)
+		return fmt.Errorf("Error in yana.insertNoteInPostgreSQL() -> Insert query wasn't succesful: %w", err)
 	}
 
 	return nil
 }
 
-func getPostgresNoteFromBucketAndNotename(bucketname, filename string) (PostgresNote, error) {
-	db, err := connectToPostgres()
+func getPostgreSQLNoteFromBucketAndNotename(bucketname, filename string) (PostgreSQLNote, error) {
+	db, err := connectToPostgreSQL()
 	defer db.Close()
 	if err != nil {
-		return PostgresNote{}, fmt.Errorf("Error in yana.getPostgresNoteFromBucketAndNotename() -> couldn't create to postgres because: %x", err)
+		return PostgreSQLNote{}, fmt.Errorf("Error in yana.getPostgreSQLNoteFromBucketAndNotename() -> couldn't create to postgresql because: %x", err)
 	}
 
 	var id string
-	var bucketnameFromPostgres string
-	var filenameFromPostgres string
+	var bucketnameFromPostgreSQL string
+	var filenameFromPostgreSQL string
 	var creationDate string
 	query := `SELECT id, bucketname, filename, created_at_utc FROM note WHERE bucketname = $1 AND filename = $2`
-	err = db.QueryRow(query, bucketname, filename).Scan(&id, &bucketnameFromPostgres, &filenameFromPostgres, &creationDate)
+	err = db.QueryRow(query, bucketname, filename).Scan(&id, &bucketnameFromPostgreSQL, &filenameFromPostgreSQL, &creationDate)
 	if err != nil {
-		return PostgresNote{}, fmt.Errorf("Error in yana.getPostgresNoteFromBucketAndNotename() -> Select query wasn't succesful: %w", err)
+		return PostgreSQLNote{}, fmt.Errorf("Error in yana.getPostgreSQLNoteFromBucketAndNotename() -> Select query wasn't succesful: %w", err)
 	}
-	return PostgresNote{id, bucketnameFromPostgres, filenameFromPostgres, creationDate}, nil
+	return PostgreSQLNote{id, bucketnameFromPostgreSQL, filenameFromPostgreSQL, creationDate}, nil
 }
 
-func getPostgresNoteFromNoteId(postgresNoteId string) (PostgresNote, error) {
-	db, err := connectToPostgres()
+func getPostgreSQLNoteFromNoteId(postgresNoteId string) (PostgreSQLNote, error) {
+	db, err := connectToPostgreSQL()
 	defer db.Close()
 	if err != nil {
-		return PostgresNote{}, fmt.Errorf("Error in yana.getPostgresNoteFromNoteId() -> couldn't create to postgres because: %x", err)
+		return PostgreSQLNote{}, fmt.Errorf("Error in yana.getPostgreSQLNoteFromNoteId() -> couldn't create to postgresql because: %x", err)
 	}
 
 	var bucketname string
@@ -291,29 +290,29 @@ func getPostgresNoteFromNoteId(postgresNoteId string) (PostgresNote, error) {
 	query := `SELECT bucketname, filename, created_at_utc FROM note WHERE id = $1`
 	err = db.QueryRow(query, postgresNoteId).Scan(&bucketname, &filename, &creationDate)
 	if err != nil {
-		return PostgresNote{}, fmt.Errorf("Error in yana.getPostgresNoteFromNoteId() -> Select query wasn't succesful: %w", err)
+		return PostgreSQLNote{}, fmt.Errorf("Error in yana.getPostgreSQLNoteFromNoteId() -> Select query wasn't succesful: %w", err)
 	}
-	return PostgresNote{postgresNoteId, bucketname, filename, creationDate}, nil
+	return PostgreSQLNote{postgresNoteId, bucketname, filename, creationDate}, nil
 }
 
-func updateNoteNameInPostgres(noteId, newNoteName string) error {
-	db, err := connectToPostgres()
+func updateNoteNameInPostgreSQL(noteId, newNoteName string) error {
+	db, err := connectToPostgreSQL()
 	if err != nil {
-		fmt.Errorf("Error in yana.updateNoteNameInPostgres -> Couldn't connect to Postgres because '%w'", err)
+		fmt.Errorf("Error in yana.updateNoteNameInPostgreSQL -> Couldn't connect to postgresql because '%w'", err)
 	}
 	defer db.Close()
 	query := `UPDATE note SET filename=$1 WHERE id=$2`
 	_, err = db.Exec(query, newNoteName, noteId)
 	if err != nil {
-		fmt.Errorf("Error in yana.updateNoteNameInPostgres -> Couldn't execute update query because '%w'", err)
+		fmt.Errorf("Error in yana.updateNoteNameInPostgreSQL -> Couldn't execute update query because '%w'", err)
 	}
 	return nil
 }
 
 func deleteNoteInPostgres(noteId string) error {
-	db, err := connectToPostgres()
+	db, err := connectToPostgreSQL()
 	if err != nil {
-		fmt.Errorf("Error in yana.deleteNoteInPostgres() -> Couldn't connect to Postgres because '%w'", err)
+		fmt.Errorf("Error in yana.deleteNoteInPostgres() -> Couldn't connect to postgresql because '%w'", err)
 	}
 	defer db.Close()
 	query := `DELETE FROM note WHERE id=$1`
@@ -326,9 +325,9 @@ func deleteNoteInPostgres(noteId string) error {
 
 // For editing an already existing note
 func doesOtherNoteWithSameNameExist(noteId, bucketName, filename string) (bool, error) {
-	db, err := connectToPostgres()
+	db, err := connectToPostgreSQL()
 	if err != nil {
-		fmt.Errorf("Error in yana.doesOtherNoteWithSameNameExist() -> Couldn't connect to Postgres because '%w'", err)
+		fmt.Errorf("Error in yana.doesOtherNoteWithSameNameExist() -> Couldn't connect to postgresql because '%w'", err)
 	}
 	defer db.Close()
 	var unusedId string
