@@ -16,7 +16,7 @@ First run:
 git clone https://github.com/FranzMartyn/YANAgo
 ```
 
-Then edit the yaml files in `db/` with your data
+Then edit `config/postgresql.yml` and `config/minio.yml` with your data
 
 Run `make install` to install the dependencies, then `make run` to test if everything works
 

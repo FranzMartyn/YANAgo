@@ -1,0 +1,5 @@
+host: "Your host address"
+port: 5432 # The default port for postgresql
+user: "Your postgres user name. 'postgres' is the default"
+password: "Your password. Might be optional"
+db: "Your database"

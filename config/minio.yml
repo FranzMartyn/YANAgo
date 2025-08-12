@@ -1,0 +1,4 @@
+url: "The URL to the API. Usually 'ip-address:port'. The API Port is set to 9000 by default"
+accesskey: "Your acceskey/username/RootUser here. 'minioadmin' is default"
+secretkey: "Your secretkey/password/RootPass here. 'minioadmin' is the default here too"
+usessl: false # Enable SSL if needed

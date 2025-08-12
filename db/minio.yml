@@ -1,4 +1,0 @@
-url: "IP Address:Port to the API. The API Port is set to 9000 by default"
-accesskey: "Your acceskey or username here. Default is minioadmin"
-secretkey: "Your secretkey or password here. Default is minioadmin"
-usessl: false
